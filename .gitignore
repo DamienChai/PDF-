@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-single/
+engine/build/
+engine/.cache/
+test-results/
+playwright-report/
+blob-report/
+tests/fixtures/large/
+*.log
+.DS_Store
+.vite/
+coverage/
+__pycache__/
