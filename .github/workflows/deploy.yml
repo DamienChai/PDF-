@@ -1,0 +1,73 @@
+# Builds the app and publishes it to GitHub Pages.
+#
+# One-time setup in the repository: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+# The build uses relative URLs only, so it works under https://<user>.github.io/<repo>/ as it is.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege by default; the deploy job adds what Pages needs.
+permissions:
+  contents: read
+
+# Never run two deployments at once, and let a running one finish: a half-published site would
+# leave installed apps with a service worker that points at files that are not there.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      # The WebAssembly engine is built locally (engine/build.sh, needs Emscripten) and its
+      # output is committed. Say so clearly if it is missing instead of failing somewhere in the
+      # tests.
+      - name: Check that the built engine is in the repository
+        run: |
+          if ! ls src/engine/dist/*.wasm >/dev/null 2>&1; then
+            echo "::error::src/engine/dist/*.wasm is missing. Build the engine and commit src/engine/dist (make sure .gitignore does not exclude it)."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

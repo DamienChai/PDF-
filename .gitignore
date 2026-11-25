@@ -1,6 +1,6 @@
 node_modules/
-dist/
-dist-single/
+/dist/
+/dist-single/
 engine/build/
 engine/.cache/
 test-results/

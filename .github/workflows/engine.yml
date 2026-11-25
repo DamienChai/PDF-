@@ -1,0 +1,57 @@
+# Rebuilds the WebAssembly PDF engine (qpdf + zlib + libjpeg + wrapper) from pinned sources.
+#
+# The result is NOT committed by this workflow: download the artifact, compare BUILDINFO.json with
+# the committed one and copy the files into src/engine/dist/ in a normal pull request.
+name: engine
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      # Same Emscripten release as EMSCRIPTEN_VERSION in engine/build.sh.
+      image: emscripten/emsdk:7.0.1
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: engine/build.sh --clean
+
+      - name: Compare with the committed build
+        run: |
+          echo "built:     $(sha256sum src/engine/dist/pdfx.wasm | cut -d' ' -f1)"
+          echo "committed: $(git -c safe.directory='*' show HEAD:src/engine/dist/pdfx.wasm | sha256sum | cut -d' ' -f1)"
+          cat src/engine/dist/BUILDINFO.json
+
+      - name: Load the module and print its version
+        run: |
+          node --input-type=module -e "
+            import fs from 'node:fs';
+            import createPdfx from './src/engine/dist/pdfx.mjs';
+            const wasm = await WebAssembly.compile(fs.readFileSync('src/engine/dist/pdfx.wasm'));
+            const m = await new Promise((resolve, reject) =>
+              createPdfx({
+                pdfxHost: { read: () => -1, write: () => -1, progress() {} },
+                instantiateWasm(imports, receive) {
+                  WebAssembly.instantiate(wasm, imports).then((i) => receive(i, wasm), reject);
+                  return {};
+                },
+              }).then(resolve, reject),
+            );
+            let end = m._pdfx_version() >>> 0;
+            const start = end;
+            while (m.HEAPU8[end]) end++;
+            console.log(new TextDecoder().decode(m.HEAPU8.subarray(start, end)));
+          "
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pdf-engine
+          path: src/engine/dist/
+          if-no-files-found: error

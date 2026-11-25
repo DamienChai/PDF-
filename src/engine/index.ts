@@ -1,17 +1,17 @@
 /**
  * Entry point of the PDF engine. The UI imports from here only.
- *
- * CONTRACT STUB — `createPdfEngine` is implemented in `./client.ts` by the engine workstream.
  */
+import { createEngineClient, type CreateEngineOptions } from './client';
 import type { PdfEngine } from './types';
 
 export * from './types';
+export type { CreateEngineOptions } from './client';
+export { checkNewPasswords, type NewPasswordProblem } from './passwords';
 
-export interface CreateEngineOptions {
-  /** Upper bound for parallel workers. Default: derived from `navigator.hardwareConcurrency`. */
-  maxWorkers?: number;
-}
-
-export function createPdfEngine(_options?: CreateEngineOptions): PdfEngine {
-  throw new Error('not implemented');
+/**
+ * Creates an engine. Nothing is loaded until the first call (or `ready()`); the WebAssembly
+ * module and the workers are fetched from the app's own static files.
+ */
+export function createPdfEngine(options?: CreateEngineOptions): PdfEngine {
+  return createEngineClient(options);
 }

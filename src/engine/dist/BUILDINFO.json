@@ -1,0 +1,16 @@
+{
+  "qpdf": "12.4.2",
+  "zlib": "1.4",
+  "jpeg": "9f",
+  "emscripten": "7.0.1",
+  "sources": {
+    "qpdf-12.4.2.tar.gz": "8a58af5b6141319287c1883bec8bd1bd545b7567b7fc5e6ce5d25a1c85f36397",
+    "zlib-1.4.tar.gz": "02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584",
+    "jpegsrc.v9f.tar.gz": "04705c110cb2469caa79fb71fba3d7bf834914706e9641a4589485c1f832565b"
+  },
+  "compileFlags": ["-O3","-fwasm-exceptions","-sSUPPORT_LONGJMP=wasm","-DNDEBUG"],
+  "linkFlags": ["-sMODULARIZE=1","-sEXPORT_ES6=1","-sEXPORT_NAME=createPdfx","-sENVIRONMENT=web,worker","-sFILESYSTEM=0","-sALLOW_MEMORY_GROWTH=1","-sMAXIMUM_MEMORY=4GB","-sINITIAL_MEMORY=32MB","-sSTACK_SIZE=8MB","-sABORTING_MALLOC=0","-sMALLOC=dlmalloc","-sTEXTDECODER=2","-sDYNAMIC_EXECUTION=0","-sINCOMING_MODULE_JS_API=instantiateWasm","-sEXPORTED_FUNCTIONS=_pdfx_inspect,_pdfx_process,_pdfx_free,_pdfx_version,_malloc,_free","-sEXPORTED_RUNTIME_METHODS=HEAPU8","--no-entry"],
+  "wasmBytes": 1035169,
+  "wasmSha256": "1710a69ecf5cb30896acaa548807312a794ec371149d70c8005a37c2a25ef20d",
+  "glueSha256": "a4e4d8ba43cc5dada87a9523cdceb72a371b27f6e7909c6eb3380f10fafc8f0d"
+}
