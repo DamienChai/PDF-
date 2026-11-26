@@ -17,9 +17,6 @@ export interface OpenSourceComponent {
   url: string;
 }
 
-/** Licence of the app itself. */
-export const APP_LICENSE = 'AGPL-3.0-or-later';
-
 /**
  * Third-party code that is part of what the app ships: the engine's components (see
  * engine/THIRD_PARTY_NOTICES.md) and the JavaScript libraries.

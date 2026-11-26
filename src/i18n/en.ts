@@ -299,8 +299,7 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'about.privacy':
     'Everything is processed on this device. Files and passwords never leave it; the app uploads nothing and contains no analytics or tracking.',
   'about.licenses': 'Open-source licences',
-  'about.licenses.app': 'This app is free software, released under the GNU AGPL 3.0 or later.',
-  'about.licenses.thirdParty': 'It includes these open-source components:',
+  'about.licenses.thirdParty': 'This app includes these open-source components:',
 
   // --- Toasts ----------------------------------------------------------------------------------
   'toast.dismiss': 'Dismiss',

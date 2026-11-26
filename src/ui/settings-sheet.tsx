@@ -3,7 +3,6 @@ import { useId } from 'preact/hooks';
 import { t } from '../i18n';
 import { outputFileName } from '../lib/filename';
 import {
-  APP_LICENSE,
   DEFAULT_SETTINGS,
   MAX_SUFFIX_LENGTH,
   OPEN_SOURCE_COMPONENTS,
@@ -100,9 +99,6 @@ function About() {
             <Icon name="chevron-down" />
           </summary>
           <div class="licenses__body">
-            <p class="hint">
-              {t('about.licenses.app')} <span class="mono">({APP_LICENSE})</span>
-            </p>
             <p class="hint">{t('about.licenses.thirdParty')}</p>
             <ul class="licenses__list">
               {OPEN_SOURCE_COMPONENTS.map((component) => (

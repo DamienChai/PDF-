@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
-import { APP_LICENSE, APP_VERSION, OPEN_SOURCE_COMPONENTS, aboutInfo } from './about';
+import { APP_VERSION, OPEN_SOURCE_COMPONENTS, aboutInfo } from './about';
 import { installDevTools } from './dev';
 import { engineState } from './engine';
 import { jobs } from './jobs';
@@ -12,12 +12,11 @@ afterAll(() => {
 
 const packageJson = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
-) as { version: string; license: string; dependencies: Record<string, string> };
+) as { version: string; dependencies: Record<string, string> };
 
 describe('about', () => {
-  it('reports the version and licence of package.json', () => {
+  it('reports the version of package.json', () => {
     expect(APP_VERSION).toBe(packageJson.version);
-    expect(APP_LICENSE).toBe(packageJson.license);
   });
 
   it('lists the engine components of the build notes and the runtime libraries', () => {

@@ -5,7 +5,7 @@
  *
  * Signals in, plain functions out. Nothing here touches the DOM by itself until `start()` runs.
  */
-export { APP_LICENSE, APP_VERSION, OPEN_SOURCE_COMPONENTS, aboutInfo } from './about';
+export { APP_VERSION, OPEN_SOURCE_COMPONENTS, aboutInfo } from './about';
 export type { AboutInfo, OpenSourceComponent } from './about';
 export {
   closeOverlay,

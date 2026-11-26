@@ -280,8 +280,7 @@ export const zhCN = {
   'about.privacy':
     '所有处理都在本机完成。文件和密码不会离开这台设备；应用不联网上传任何内容，也不含统计或跟踪代码。',
   'about.licenses': '开源许可',
-  'about.licenses.app': '本应用是自由软件，以 GNU AGPL 3.0 或更高版本发布。',
-  'about.licenses.thirdParty': '使用了以下开源组件：',
+  'about.licenses.thirdParty': '本应用使用了以下开源组件：',
 
   // --- Toasts ----------------------------------------------------------------------------------
   'toast.dismiss': '关闭',

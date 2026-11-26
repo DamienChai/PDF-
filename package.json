@@ -3,7 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "description": "Unlock and lock PDF files locally on your device. Installable PWA for Android, macOS and Windows.",
-  "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite",
