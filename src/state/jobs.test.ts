@@ -208,7 +208,7 @@ describe('unlock: card states', () => {
     await h.add('needs-password.pdf');
     expect(h.view('needs-password.pdf')).toMatchObject({
       state: 'needs-password',
-      chip: { label: { key: 'chip.needsPassword' }, tone: 'warning' },
+      chip: { label: { key: 'chip.needsPassword' }, tone: 'info' },
       algorithm: { label: { key: 'algorithm.chip.aes-256' }, outdated: false },
       note: null,
       password: null,
@@ -247,7 +247,7 @@ describe('unlock: card states', () => {
     await h.add('owner-only.pdf');
     expect(h.view('owner-only.pdf')).toMatchObject({
       state: 'restricted',
-      chip: { label: { key: 'chip.restricted' }, tone: 'info' },
+      chip: { label: { key: 'chip.restricted' }, tone: 'warning' },
       note: { list: [{ key: 'restriction.print' }, { key: 'restriction.extract' }] },
       pageCount: 31,
       password: null,
@@ -597,6 +597,7 @@ describe('unlock: batches', () => {
     expect(h.jobs.summary.value).toMatchObject({
       total: 6,
       needPassword: 3,
+      rejected: 0,
       restricted: 1,
       notEncrypted: 1,
       failed: 1,
@@ -606,6 +607,8 @@ describe('unlock: batches', () => {
     h.jobs.setUnlockPassword(DEMO_PASSWORD);
     const report = await h.jobs.unlockAll();
     expect(report).toEqual({ started: true, done: 3, rejected: 1, failed: 0, cancelled: 0 });
+    // The file the password did not open is counted, so that the list can point to it.
+    expect(h.jobs.summary.value).toMatchObject({ rejected: 1, needPassword: 1, done: 3 });
     expect(h.states()).toEqual([
       'done',
       'done',

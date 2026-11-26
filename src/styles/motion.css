@@ -1,0 +1,178 @@
+/* Motion that explains: what appears rises a little, the state badge pops, sheets slide.
+   All of it yields to prefers-reduced-motion. Then: forced colours (Windows high contrast). */
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes sheet-out {
+  from {
+    transform: translateY(var(--sheet-from, 0px));
+  }
+
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    transform: translate(-50%, -48%) scale(0.98);
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-out {
+  to {
+    transform: translate(-50%, -49%) scale(0.985);
+    opacity: 0;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    transform: translateY(-4px) scale(0.98);
+    opacity: 0;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* A spinner that does not spin still says "working"; a skeleton does not need to pulse. */
+  .icon--spin,
+  .art__icon--spin,
+  .skeleton {
+    animation: none !important;
+  }
+}
+
+/* Forced colours: fills disappear, so every state that was a fill gets a system colour or an
+   outline of its own. */
+@media (forced-colors: active) {
+  .chip,
+  .choice:has(input:checked),
+  .card,
+  .spotlight,
+  .dock__note,
+  .banner,
+  .tile,
+  .notice--boxed,
+  .toast {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
+  .segmented__thumb {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .switch[aria-checked='true'],
+  .progress__fill,
+  .btn--primary,
+  .badge {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+
+  .btn:disabled,
+  .btn[aria-disabled='true'] {
+    color: GrayText;
+  }
+
+  .switch__thumb {
+    background: CanvasText;
+  }
+
+  .switch[aria-checked='true'] .switch__thumb {
+    background: HighlightText;
+    color: Highlight;
+  }
+
+  .progress,
+  .meter__bar i {
+    outline: 1px solid CanvasText;
+  }
+
+  /* The strength meter: filled segments are solid, the others stay outlined. */
+  .meter[data-score='0'] i:nth-child(-n + 1),
+  .meter[data-score='1'] i:nth-child(-n + 1),
+  .meter[data-score='2'] i:nth-child(-n + 2),
+  .meter[data-score='3'] i:nth-child(-n + 3),
+  .meter[data-score='4'] i {
+    background: Highlight;
+    forced-color-adjust: none;
+  }
+
+  .card--wrong-password,
+  .card--error,
+  .input--invalid {
+    outline: 2px solid Mark;
+  }
+
+  .drop {
+    background: Canvas;
+    color: CanvasText;
+  }
+}

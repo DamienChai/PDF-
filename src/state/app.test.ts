@@ -257,6 +257,17 @@ describe('details sheet and file list', () => {
     expect(app.overlayController.overlay.value).toBeNull();
   });
 
+  it('closes the action menu of a file that is removed', async () => {
+    const app = setup();
+    app.startApp();
+    const [kept, removed] = await app.add('plain.pdf', 'aes128.pdf');
+    app.overlayController.openMenu(removed!.id);
+    app.jobs.remove(kept!.id);
+    expect(app.overlayController.overlay.value).toEqual({ kind: 'menu', entryId: removed!.id });
+    app.jobs.remove(removed!.id);
+    expect(app.overlayController.overlay.value).toBeNull();
+  });
+
   it('closes the details when the list is cleared, but not the settings', async () => {
     const app = setup();
     app.startApp();

@@ -1,17 +1,21 @@
 /**
- * Which sheet or dialog is open: settings, or the details of one file. One at a time.
+ * Which sheet, dialog or menu is open: settings, the details of one file, or the action menu of
+ * one file (an action sheet on the phone). One at a time.
  *
  * An open overlay owns one history entry, so that the Android back gesture (and the browser's
  * back button) closes it instead of leaving the app.
  */
 import { signal, type ReadonlySignal } from '@preact/signals';
 
-export type Overlay = { kind: 'settings' } | { kind: 'details'; entryId: string };
+export type Overlay =
+  { kind: 'settings' } | { kind: 'details'; entryId: string } | { kind: 'menu'; entryId: string };
 
 export interface OverlayController {
   readonly overlay: ReadonlySignal<Overlay | null>;
   openSettings(): void;
   openDetails(entryId: string): void;
+  /** Opens the action menu of a file. Opening details from it replaces it in place. */
+  openMenu(entryId: string): void;
   /** Closes whatever is open. For the close button, the scrim and the Escape key. */
   close(): void;
   /** Starts listening for the back gesture. Returns a function that stops listening. */
@@ -88,6 +92,7 @@ export function createOverlayController(env: OverlayEnvironment | null): Overlay
     overlay,
     openSettings: () => open({ kind: 'settings' }),
     openDetails: (entryId) => open({ kind: 'details', entryId }),
+    openMenu: (entryId) => open({ kind: 'menu', entryId }),
     close,
     attach() {
       if (!env) return () => undefined;

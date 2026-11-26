@@ -46,7 +46,7 @@ export const zhCN = {
   'chip.needsPassword': '需要密码',
   'chip.restricted': '仅权限限制',
   'chip.notEncrypted': '未加密',
-  'chip.encrypted': '已加密',
+  'chip.encrypted': '已有加密',
   'chip.unlocked': '已解锁',
   'chip.locked': '已加密',
   'chip.wrongPassword': '密码不正确',
@@ -55,8 +55,8 @@ export const zhCN = {
   'chip.error': '无法处理',
 
   // --- File card -------------------------------------------------------------------------------
-  'entry.note.nothingToUnlock': '没有密码保护，无需解锁',
-  'entry.note.noRestrictions': '设有权限密码，但未限制任何操作',
+  'entry.note.nothingToUnlock': '无需解锁',
+  'entry.note.noRestrictions': '未限制任何操作',
   'entry.note.willEncrypt': '将被加密',
   'entry.note.willReplace': '现有保护将被替换',
   'entry.note.needsCurrentPassword': '更换保护前，需要先输入当前密码',
@@ -92,7 +92,7 @@ export const zhCN = {
 
   // --- Unlock: action area ---------------------------------------------------------------------
   'unlock.password.label': '密码',
-  'unlock.password.placeholder': '输入 PDF 密码',
+  'unlock.password.placeholder': 'PDF 密码',
   'unlock.password.sharedHint': '此密码会用于所有需要密码的文件',
   'unlock.password.wrong': '密码不正确，请重试',
   'password.show': '显示密码',
@@ -343,6 +343,54 @@ export const zhCN = {
   'error.unknown.title': '处理失败',
   'error.unknown.advice': '出现了意外错误，请重试。',
 
+  // --- List header and summary -------------------------------------------------------------------
+  'list.summary.needPassword': '{count} 个需要密码',
+  'list.summary.needCurrent': '{count} 个需要当前密码',
+  'list.summary.restricted': '{count} 个仅有权限限制',
+  'list.summary.notEncrypted': '{count} 个未加密',
+  'list.summary.rejected': '{count} 个密码不正确',
+  'list.summary.failed': '{count} 个无法处理',
+  'list.summary.done': '{count} 个已完成',
+  'list.dropMore': '把更多 PDF 拖到这里',
+  'list.dropMore.hint': '也可以点击选择，或直接粘贴',
+
+  // --- Action area: headlines, notes and outcomes --------------------------------------------------
+  'dock.unlock.headline': '输入 PDF 密码',
+  'dock.unlock.sharedHelp': '打不开的文件可以在卡片上单独重试',
+  'dock.noPassword.headline': '无需密码',
+  'dock.noPassword.note': '这些限制可以直接解除，不需要密码。',
+  'dock.analysing.headline': '正在分析文件…',
+  'dock.lock.headline': '加密 PDF',
+  'dock.unlock.title': '解锁 PDF',
+  'dock.unsaved': '尚未保存',
+  'dock.saved': '已保存',
+  'dock.zipHint': '将打包为一个 ZIP',
+  'dock.done.unlock': '密码已移除，这份副本打开时不再需要密码。',
+  'dock.done.restrictions': '限制已解除，这份副本可以自由打印、复制和修改。',
+  'dock.done.lock': '已使用新密码加密。请妥善保管密码。',
+
+  // --- Lock form: summary of the advanced options ---------------------------------------------------
+  'lock.algorithm.recommended': '推荐',
+  'lock.algorithm.compatible': '兼容旧版',
+  'lock.summary.ownerPassword': '单独权限密码',
+  'lock.summary.restricted': '已限制权限',
+  'lock.summary.metadataClear': '元数据不加密',
+  'lock.result.title': '加密设置',
+  'lock.result.noPassword': '未设置打开密码',
+
+  // --- Details: plain-language summary -----------------------------------------------------------
+  'details.summary.none': '这个文件没有加密，任何人都可以打开、打印和修改。',
+  'details.summary.password': '打开这个文件需要密码。输入正确的密码后才能查看内容。',
+  'details.summary.restrictions':
+    '打开这个文件不需要密码，但部分操作受到限制。这些限制无需密码即可解除。',
+  'details.summary.unavailable': '还无法读取这个文件的信息。',
+
+  // --- Keyboard shortcuts ------------------------------------------------------------------------
+  'shortcuts.title': '快捷键',
+  'shortcuts.choose': '选择文件',
+  'shortcuts.paste': '粘贴文件',
+  'shortcuts.run': '开始处理',
+
   // --- Labels for icon-only controls -------------------------------------------------------------
   'aria.close': '关闭',
   'aria.removeFile': '移除 {name}',
@@ -352,6 +400,7 @@ export const zhCN = {
   'aria.pdfFile': 'PDF 文件',
   'aria.status': '状态',
   'aria.notifications': '通知',
+  'aria.jumpTo': '跳到第一个{label}的文件',
 
   // --- Formats ---------------------------------------------------------------------------------
   'format.files': '{count} 个文件',

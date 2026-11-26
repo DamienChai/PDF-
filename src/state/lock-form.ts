@@ -10,7 +10,14 @@
 import { computed, signal, type ReadonlySignal } from '@preact/signals';
 import { checkNewPasswords } from '../engine/passwords';
 import { ALL_PERMISSIONS, type EncryptOptions, type PrintPermission } from '../engine/types';
-import { strengthHintText, strengthLabel, type Message, type MessageKey } from '../i18n';
+import {
+  algorithmChipLabel,
+  strengthHintText,
+  strengthLabel,
+  type Message,
+  type MessageKey,
+  type MessageList,
+} from '../i18n';
 import { generatePassword, type RandomSource } from '../lib/password-generator';
 import { estimateStrength, type StrengthScore } from '../lib/password-strength';
 import { toasts as appToasts, type ToastQueue } from './toasts';
@@ -76,6 +83,11 @@ export interface LockForm {
   readonly passwordLabel: ReadonlySignal<Message>;
   /** Shown under the main password while it may be left empty. */
   readonly passwordHint: ReadonlySignal<Message | null>;
+  /**
+   * What the advanced options amount to, for the collapsed section: the algorithm, then whatever
+   * differs from the defaults ("AES-256 · Restricted").
+   */
+  readonly advancedSummary: ReadonlySignal<MessageList>;
   /** Everything that is wrong right now, whether or not it should be shown yet. */
   readonly problems: ReadonlySignal<LockFormErrors>;
   /** What to show next to each field at this moment. */
@@ -246,6 +258,27 @@ export function createLockForm(env: LockFormEnvironment = {}): LockForm {
     separateOwner.value && password.value === '' ? { key: 'lock.password.openOptional' } : null,
   );
 
+  const advancedSummary = computed<MessageList>(() => {
+    const list: Message[] = [
+      algorithmChipLabel({
+        algorithm: algorithm.value,
+        keyBits: algorithm.value === 'aes-256' ? 256 : 128,
+      }),
+    ];
+    if (separateOwner.value) {
+      const chosen = permissions.value;
+      const restricted =
+        chosen.print !== 'full' ||
+        !chosen.extract ||
+        !chosen.modify ||
+        !chosen.annotate ||
+        !chosen.assemble;
+      list.push({ key: restricted ? 'lock.summary.restricted' : 'lock.summary.ownerPassword' });
+    }
+    if (!encryptMetadata.value) list.push({ key: 'lock.summary.metadataClear' });
+    return { list };
+  });
+
   function untouch(field: LockField): void {
     if (!touched.peek().has(field)) return;
     const next = new Set(touched.peek());
@@ -305,6 +338,7 @@ export function createLockForm(env: LockFormEnvironment = {}): LockForm {
     strength,
     passwordLabel,
     passwordHint,
+    advancedSummary,
     problems,
     errors,
     valid,

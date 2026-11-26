@@ -369,6 +369,7 @@ describe('lock: running', () => {
       phase: 'ready',
       actionable: 0,
       needPassword: 1,
+      rejected: 1,
       primary: { enabled: false },
     });
     expect((await h.jobs.lockAll()).refusal).toBe('current-password-required');

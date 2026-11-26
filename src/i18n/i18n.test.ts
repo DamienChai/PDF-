@@ -143,7 +143,8 @@ describe('dictionaries', () => {
       'chip.restricted': '仅权限限制',
       'chip.notEncrypted': '未加密',
       'chip.unlocked': '已解锁',
-      'chip.encrypted': '已加密',
+      // The result of locking; an input that is already encrypted reads 已有加密.
+      'chip.locked': '已加密',
       'entry.password.wrong': '密码不正确',
       'entry.currentPassword.label': '当前密码',
       'entry.save': '保存',

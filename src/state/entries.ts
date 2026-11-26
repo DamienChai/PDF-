@@ -227,10 +227,11 @@ function chipFor(state: EntryState, mode: Mode, queued: boolean): ChipView {
   switch (state) {
     case 'analysing':
       return { label: { key: 'chip.analysing' }, tone: 'neutral' };
+    // `info` is the accent: the password the user is about to type acts on this file.
     case 'needs-password':
-      return { label: { key: 'chip.needsPassword' }, tone: 'warning' };
+      return { label: { key: 'chip.needsPassword' }, tone: 'info' };
     case 'restricted':
-      return { label: { key: 'chip.restricted' }, tone: 'info' };
+      return { label: { key: 'chip.restricted' }, tone: 'warning' };
     case 'not-encrypted':
     case 'ready':
       return { label: { key: 'chip.notEncrypted' }, tone: 'neutral' };
@@ -534,6 +535,8 @@ export interface Summary {
   processing: number;
   done: number;
   failed: number;
+  /** Files whose password was tried and rejected (in lock mode: the current password). */
+  rejected: number;
   /** Unlock: show the shared password field of the action area. */
   passwordField: boolean;
   /** Under that field when several files will be tried with it. */
@@ -592,6 +595,7 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
   let notEncrypted = 0;
   let lockReady = 0;
   let lockWaiting = 0;
+  let rejected = 0;
   let unsaved = 0;
   let totalSize = 0;
 
@@ -617,6 +621,7 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
         locked++;
         break;
       case 'wrong-password':
+        rejected++;
         // Lock mode: the rejected password has to be corrected on the card first.
         if (mode === 'unlock') locked++;
         else lockWaiting++;
@@ -721,6 +726,7 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
     processing,
     done,
     failed,
+    rejected,
     passwordField: showsUnlockField,
     passwordHint: showsUnlockField && locked > 1 ? { key: 'unlock.password.sharedHint' } : null,
     passwordError:

@@ -44,22 +44,22 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
 
   // --- Status chips ----------------------------------------------------------------------------
   'chip.analysing': 'Analysing',
-  'chip.needsPassword': 'Password required',
-  'chip.restricted': 'Restrictions only',
+  'chip.needsPassword': 'Needs password',
+  'chip.restricted': 'Restricted',
   'chip.notEncrypted': 'Not encrypted',
   'chip.encrypted': 'Encrypted',
   'chip.unlocked': 'Unlocked',
-  'chip.locked': 'Encrypted',
+  'chip.locked': 'Locked',
   'chip.wrongPassword': 'Wrong password',
   'chip.queued': 'Waiting',
   'chip.processing': 'Processing',
   'chip.error': 'Can’t process',
 
   // --- File card -------------------------------------------------------------------------------
-  'entry.note.nothingToUnlock': 'No password protection, nothing to unlock',
-  'entry.note.noRestrictions': 'Has a permissions password, but nothing is restricted',
+  'entry.note.nothingToUnlock': 'Nothing to unlock',
+  'entry.note.noRestrictions': 'Nothing is restricted',
   'entry.note.willEncrypt': 'Will be encrypted',
-  'entry.note.willReplace': 'Its current protection will be replaced',
+  'entry.note.willReplace': 'Protection will be replaced',
   'entry.note.needsCurrentPassword': 'Enter the current password to change the protection',
   'entry.password.label': 'Password',
   'entry.password.placeholder': 'Password for this file',
@@ -96,7 +96,7 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
 
   // --- Unlock: action area ---------------------------------------------------------------------
   'unlock.password.label': 'Password',
-  'unlock.password.placeholder': 'Enter the PDF password',
+  'unlock.password.placeholder': 'PDF password',
   'unlock.password.sharedHint': 'This password is tried on every file that needs one',
   'unlock.password.wrong': 'Wrong password. Try again.',
   'password.show': 'Show password',
@@ -165,7 +165,7 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
     'Restrictions rely on the reader honouring them. They are no substitute for an open password.',
   'lock.permission.print': 'Printing',
   'lock.print.full': 'Allowed',
-  'lock.print.low': 'Low resolution only',
+  'lock.print.low': 'Low resolution',
   'lock.print.none': 'Not allowed',
   'lock.permission.extract': 'Copying text and images',
   'lock.permission.modify': 'Editing content',
@@ -374,6 +374,68 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'error.unknown.title': 'Processing failed',
   'error.unknown.advice': 'Something unexpected went wrong. Try again.',
 
+  // --- List header and summary -------------------------------------------------------------------
+  'list.summary.needPassword': {
+    one: '{count} needs a password',
+    other: '{count} need a password',
+  },
+  'list.summary.needCurrent': {
+    one: '{count} needs its current password',
+    other: '{count} need their current password',
+  },
+  'list.summary.restricted': {
+    one: '{count} has restrictions only',
+    other: '{count} have restrictions only',
+  },
+  'list.summary.notEncrypted': {
+    one: '{count} is not encrypted',
+    other: '{count} are not encrypted',
+  },
+  'list.summary.rejected': { one: '{count} wrong password', other: '{count} wrong passwords' },
+  'list.summary.failed': { one: '{count} problem', other: '{count} problems' },
+  'list.summary.done': { one: '{count} is finished', other: '{count} are finished' },
+  'list.dropMore': 'Drop more PDFs here',
+  'list.dropMore.hint': 'or click to choose, or paste',
+
+  // --- Action area: headlines, notes and outcomes --------------------------------------------------
+  'dock.unlock.headline': 'Enter the PDF password',
+  'dock.unlock.sharedHelp': 'Files it does not open can be retried on their cards',
+  'dock.noPassword.headline': 'No password needed',
+  'dock.noPassword.note': 'These restrictions can be removed without a password.',
+  'dock.analysing.headline': 'Analysing…',
+  'dock.lock.headline': 'Lock PDFs',
+  'dock.unlock.title': 'Unlock PDFs',
+  'dock.unsaved': 'Not saved yet',
+  'dock.saved': 'Saved',
+  'dock.zipHint': 'Will be bundled into one ZIP',
+  'dock.done.unlock': 'The password is removed. This copy opens without it.',
+  'dock.done.restrictions':
+    'The restrictions are removed. This copy can be printed, copied and edited.',
+  'dock.done.lock': 'Locked with the new password. Keep the password safe.',
+
+  // --- Lock form: summary of the advanced options ---------------------------------------------------
+  'lock.algorithm.recommended': 'Recommended',
+  'lock.algorithm.compatible': 'Older readers',
+  'lock.summary.ownerPassword': 'Permissions password',
+  'lock.summary.restricted': 'Restricted',
+  'lock.summary.metadataClear': 'Metadata not encrypted',
+  'lock.result.title': 'Protection',
+  'lock.result.noPassword': 'No open password',
+
+  // --- Details: plain-language summary -----------------------------------------------------------
+  'details.summary.none': 'This file is not encrypted. Anyone can open, print and edit it.',
+  'details.summary.password':
+    'A password is needed to open this file. Its content is unreadable without it.',
+  'details.summary.restrictions':
+    'This file opens without a password, but some actions are restricted. The restrictions can be removed without a password.',
+  'details.summary.unavailable': 'Nothing is known about this file yet.',
+
+  // --- Keyboard shortcuts ------------------------------------------------------------------------
+  'shortcuts.title': 'Keyboard shortcuts',
+  'shortcuts.choose': 'Choose files',
+  'shortcuts.paste': 'Paste files',
+  'shortcuts.run': 'Start',
+
   // --- Labels for icon-only controls -------------------------------------------------------------
   'aria.close': 'Close',
   'aria.removeFile': 'Remove {name}',
@@ -383,6 +445,7 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'aria.pdfFile': 'PDF file',
   'aria.status': 'Status',
   'aria.notifications': 'Notifications',
+  'aria.jumpTo': 'Go to the first file: {label}',
 
   // --- Formats ---------------------------------------------------------------------------------
   'format.files': { one: '{count} file', other: '{count} files' },

@@ -77,11 +77,11 @@ export function createAppStarter(deps: AppDependencies): () => void {
     });
   }
 
-  /** The details sheet of a file that is no longer in the list has nothing to show. */
+  /** The details sheet or menu of a file that is no longer in the list has nothing to show. */
   function closeOrphanedDetails(): void {
     effect(() => {
       const open = deps.overlay.overlay.value;
-      if (open?.kind !== 'details') return;
+      if (open?.kind !== 'details' && open?.kind !== 'menu') return;
       const listed = deps.jobs.entries.value.some((entry) => entry.id === open.entryId);
       if (!listed) untracked(() => deps.overlay.close());
     });
@@ -165,6 +165,18 @@ export function openSettings(): void {
 export function openDetails(entryId: string): void {
   overlayController.openDetails(entryId);
 }
+
+/** Opens the action menu (details, remove …) of a file. */
+export function openMenu(entryId: string): void {
+  overlayController.openMenu(entryId);
+}
+
+/** The file whose action menu is open, if any. */
+export const menuEntry: ReadonlySignal<Entry | null> = computed(() => {
+  const open = overlayController.overlay.value;
+  if (open?.kind !== 'menu') return null;
+  return jobs.entries.value.find((entry) => entry.id === open.entryId) ?? null;
+});
 
 /** Closes the open sheet or dialog (close button, scrim, Escape). The back gesture does it too. */
 export function closeOverlay(): void {

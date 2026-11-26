@@ -1,0 +1,780 @@
+/* The workspace with files: list header, file cards (cards in a narrow list, table rows in a
+   wide one), the single-file spotlight, and the document drawings. */
+
+/* List header ------------------------------------------------------------- */
+.listhead {
+  position: sticky;
+  top: var(--topbar-total);
+  z-index: 10;
+  display: grid;
+  grid-template-areas:
+    'title actions'
+    'summary summary';
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--space-2);
+  /* Full bleed, so that its edge spans the window when the list scrolls under it. */
+  margin: 0 calc((var(--column-pad) + var(--safe-right)) * -1) 0
+    calc((var(--column-pad) + var(--safe-left)) * -1);
+  padding: 0 calc(var(--column-pad) + var(--safe-right)) var(--space-2)
+    calc(var(--column-pad) + var(--safe-left));
+  background: var(--color-bg);
+  transition: box-shadow var(--dur-base) var(--ease-standard);
+}
+
+:root[data-scrolled] .app[data-mode='unlock'] .listhead {
+  box-shadow: var(--shadow-edge);
+}
+
+.listhead__title {
+  grid-area: title;
+  overflow: hidden;
+  font: var(--type-heading);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listhead__size {
+  color: var(--color-text-2);
+  font-weight: 400;
+}
+
+.listhead__actions {
+  display: flex;
+  grid-area: actions;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--hit);
+}
+
+.listhead__actions .btn--ghost {
+  margin-right: calc(var(--space-3) * -1);
+}
+
+.listhead__summary {
+  grid-area: summary;
+  margin-top: -2px;
+  padding-bottom: 2px;
+  font: var(--type-caption);
+  color: var(--color-text-2);
+}
+
+/* A count that is also a way to get to the files it counts. */
+.jump {
+  position: relative;
+  border-radius: var(--radius-xs);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.jump--danger {
+  color: var(--color-danger);
+}
+
+.jump--accent {
+  color: var(--color-accent-text);
+}
+
+/* File card --------------------------------------------------------------- */
+.listbox {
+  container: list / inline-size;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.card {
+  position: relative;
+  display: grid;
+  grid-template-areas:
+    'doc name end'
+    'doc chips end'
+    '. info info'
+    'detail detail detail';
+  grid-template-columns: 36px minmax(0, 1fr) 40px;
+  align-items: start;
+  gap: 0 var(--space-3);
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  /* Reached through a "jump to" link: clear of the pinned header and action area. */
+  scroll-margin-block: var(--space-4);
+  animation: rise var(--dur-base) var(--ease-out) both;
+  transition:
+    border-color var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+
+.card:focus-visible {
+  outline-offset: -3px;
+}
+
+.card__name {
+  grid-area: name;
+  min-width: 0;
+  font: var(--type-body-strong);
+}
+
+.card__chips {
+  display: flex;
+  grid-area: chips;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 6px;
+}
+
+.card__info {
+  grid-area: info;
+  min-width: 0;
+  margin-top: 6px;
+}
+
+.card__detail {
+  grid-area: detail;
+  min-width: 0;
+  margin-top: var(--space-3);
+  padding-right: var(--space-1);
+}
+
+.card__end {
+  grid-area: end;
+  /* The 48px hit area reaches into the card's padding; the glyph lines up with the edge. */
+  margin: -6px -4px -6px -4px;
+}
+
+.card__progress {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.card__progress .progress {
+  height: 4px;
+  border-radius: 0;
+}
+
+/* Nothing to do for this file in unlock mode: it recedes into the page. */
+.app[data-mode='unlock'] .card--not-encrypted {
+  background: none;
+}
+
+.app[data-mode='unlock'] .card--not-encrypted .card__name {
+  color: var(--color-text-2);
+}
+
+.card--done {
+  border-color: var(--color-success-line);
+  background: color-mix(in srgb, var(--color-success-subtle) 45%, var(--color-surface));
+}
+
+/* Needs the user: a 2px red edge (the second pixel is drawn inside, so nothing moves). */
+.card--wrong-password,
+.card--error {
+  border-color: var(--color-danger-solid);
+  box-shadow: inset 0 0 0 1px var(--color-danger-solid);
+}
+
+/* File name: one line, shortened in the middle by script (file-name.tsx); the CSS ellipsis is
+   only the fallback for the moment before it has measured. */
+.filename {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.info {
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-wrap: pretty;
+}
+
+.info__note::before {
+  content: ' · ';
+}
+
+.output {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font: var(--type-caption);
+  color: var(--color-text-2);
+}
+
+.output > .icon {
+  color: var(--color-text-3);
+}
+
+.output__name {
+  /* Takes the room that is left; its width must not depend on its (shortened) content. */
+  flex: 1 1 0;
+  color: var(--color-text);
+}
+
+.output__meta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.output__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.inline-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+}
+
+.inline-form__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+}
+
+.inline-form__row > :only-child {
+  grid-column: 1 / -1;
+}
+
+.inline-form__row .btn {
+  height: var(--control-h);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.problem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.problem__text {
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-wrap: pretty;
+}
+
+.problem__title {
+  display: block;
+  color: var(--color-danger);
+  font: var(--type-label);
+  font-weight: 600;
+}
+
+.problem__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.problem__actions:empty {
+  display: none;
+}
+
+.disclosure-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 28px;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-2);
+  font: var(--type-label);
+}
+
+.disclosure-toggle:hover {
+  color: var(--color-text);
+}
+
+.disclosure-toggle .icon {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.disclosure-toggle[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+
+.problem__detail {
+  max-height: 10rem;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: var(--color-sunken);
+  color: var(--color-text-2);
+  font: var(--type-mono);
+  font-weight: 400;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/* Wide list: the same markup as a table. The list owns the columns and every card borrows them
+   (subgrid), so chips and details line up across rows and a column is only as wide as its
+   widest cell: without a retry field or result actions anywhere, the names get the room. A
+   state change happens in place, inside the row.
+   Browsers without subgrid keep the cards. */
+@supports (grid-template-columns: subgrid) {
+  @container list (min-width: 46rem) {
+    .list {
+      /* All but the name are as wide as their widest cell. (The first is the glyph: `auto`
+         rather than its 36px, because the card's own padding counts into an edge track.) */
+      grid-template-columns: auto minmax(7rem, 1fr) auto auto auto;
+      column-gap: var(--space-3);
+    }
+
+    .card {
+      grid-column: 1 / -1;
+      grid-template-areas:
+        'doc name chips detail end'
+        'doc info chips detail end';
+      grid-template-columns: subgrid;
+      align-items: center;
+      row-gap: 2px;
+      min-height: 72px;
+      padding: 10px var(--space-2) 10px var(--space-4);
+    }
+
+    .card__name {
+      align-self: end;
+    }
+
+    .card__info {
+      align-self: start;
+      margin-top: 0;
+    }
+
+    /* Two lines at most under the name; an error keeps to one (the details dialog has it all). */
+    .info {
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+
+    .problem__text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card__chips {
+      flex-wrap: nowrap;
+      margin-top: 0;
+    }
+
+    .card__detail {
+      margin-top: 0;
+      padding: 0;
+    }
+
+    .card__end {
+      margin: 0;
+    }
+
+    .card .doc {
+      align-self: center;
+    }
+
+    .card .inline-form,
+    .card .problem {
+      width: 17rem;
+    }
+
+    /* The chip and the red field say it; the advice stays available to assistive technology. */
+    .card .inline-form .hint:not(.hint--danger) {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .card .problem {
+      gap: var(--space-1);
+    }
+
+    .card .problem__title {
+      display: inline;
+      margin-right: 6px;
+    }
+  }
+}
+
+/* Document glyph ------------------------------------------------------------
+   A sheet of paper whose mark shows the state of the file. */
+.doc {
+  position: relative;
+  display: block;
+  grid-area: doc;
+  width: 36px;
+  height: 44px;
+  color: var(--color-text-3);
+}
+
+.doc__page {
+  width: 36px;
+  height: 44px;
+  fill: var(--color-surface);
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.doc__mark {
+  position: absolute;
+  top: 20px;
+  left: 10px;
+}
+
+.doc--info {
+  color: var(--color-accent-text);
+}
+
+.doc--info .doc__page {
+  fill: var(--color-accent-subtle);
+  stroke: var(--color-accent-line);
+}
+
+.doc--warning {
+  color: var(--color-warning);
+}
+
+.doc--warning .doc__page {
+  fill: var(--color-warning-subtle);
+  stroke: var(--color-warning-line);
+}
+
+.doc--success {
+  color: var(--color-success);
+}
+
+.doc--success .doc__page {
+  fill: var(--color-success-subtle);
+  stroke: var(--color-success-line);
+}
+
+.doc--danger {
+  color: var(--color-danger);
+}
+
+.doc--danger .doc__page {
+  fill: var(--color-danger-subtle);
+  stroke: var(--color-danger-line);
+}
+
+/* Illustration: a document, a state badge and, where a password is next, a password pill. */
+.art {
+  --art-tone: var(--color-accent);
+  --art-tint: var(--color-accent-subtle);
+  --art-line: var(--color-accent-line);
+  display: block;
+  overflow: visible;
+}
+
+.art--neutral {
+  --art-tone: var(--color-text-3);
+  --art-tint: var(--color-sunken);
+  --art-line: var(--color-border-strong);
+}
+
+.art--warning {
+  --art-tone: var(--color-warning-solid);
+  --art-tint: var(--color-warning-subtle);
+  --art-line: var(--color-warning-line);
+}
+
+.art--success {
+  --art-tone: var(--color-success-solid);
+  --art-tint: var(--color-success-subtle);
+  --art-line: var(--color-success-line);
+}
+
+.art--danger {
+  --art-tone: var(--color-danger-solid);
+  --art-tint: var(--color-danger-subtle);
+  --art-line: var(--color-danger-line);
+}
+
+.art__page {
+  fill: var(--color-bg);
+  stroke: var(--color-border-strong);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.art__fold {
+  fill: var(--art-tint);
+  stroke: var(--color-border-strong);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  transition: fill var(--dur-slow) var(--ease-out);
+}
+
+.art__lines rect {
+  fill: var(--color-sunken);
+}
+
+.art__pill rect {
+  fill: var(--color-surface);
+  stroke: var(--art-line);
+  stroke-width: 1.5;
+}
+
+.art__pill circle {
+  fill: var(--art-tone);
+}
+
+.art__badge {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pop var(--dur-slow) var(--ease-out) both;
+}
+
+.art__badge > circle {
+  fill: var(--art-tone);
+  stroke: var(--color-surface);
+  stroke-width: 4;
+}
+
+.art__keyhole {
+  fill: #fff;
+}
+
+.art__icon svg {
+  overflow: visible;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: #fff;
+}
+
+.art__icon--spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spin 900ms linear infinite;
+}
+
+/* Spotlight -----------------------------------------------------------------
+   One file on the phone: the file is the stage. */
+.spotlight {
+  position: relative;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-8) var(--space-5) var(--space-6);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  text-align: center;
+  transition:
+    border-color var(--dur-slow) var(--ease-out),
+    background-color var(--dur-slow) var(--ease-out);
+}
+
+.spotlight__end {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+}
+
+.spotlight__art .art {
+  width: clamp(128px, 42vw, 184px);
+  height: auto;
+}
+
+.spotlight__text {
+  display: grid;
+  justify-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.spotlight__name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  font: var(--type-title);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.spotlight__meta {
+  margin-top: var(--space-1);
+  font: var(--type-caption);
+  color: var(--color-text-2);
+}
+
+.spotlight__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: var(--space-3);
+}
+
+.spotlight__note {
+  max-width: 24em;
+  margin-top: var(--space-3);
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-wrap: balance;
+}
+
+.spotlight .output {
+  width: 100%;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-success-line);
+  text-align: left;
+}
+
+.spotlight .problem {
+  justify-items: center;
+  margin-top: var(--space-3);
+}
+
+.spotlight .problem__actions {
+  justify-content: center;
+}
+
+.spotlight--done {
+  border-color: var(--color-success-line);
+  background: color-mix(in srgb, var(--color-success-subtle) 45%, var(--color-surface));
+}
+
+.spotlight--done .art__badge > circle {
+  stroke: color-mix(in srgb, var(--color-success-subtle) 45%, var(--color-surface));
+}
+
+.spotlight--wrong-password,
+.spotlight--error {
+  border-color: var(--color-danger-line);
+}
+
+.app[data-mode='unlock'] .spotlight--not-encrypted {
+  background: none;
+}
+
+@media (max-height: 780px) {
+  .spotlight {
+    gap: var(--space-3);
+    padding: var(--space-5) var(--space-4) var(--space-4);
+  }
+
+  .spotlight__art .art {
+    width: 112px;
+  }
+}
+
+/* Keyboard open: name, facts and chips are what matters; the drawing makes room. */
+:root[data-compact] .spotlight {
+  flex: none;
+  /* Symmetric, so that the name stays centred beside the menu button. */
+  padding: var(--space-4) var(--space-12);
+}
+
+:root[data-compact] .spotlight__art {
+  display: none;
+}
+
+/* Drop more ------------------------------------------------------------------
+   Desktop only: the room under the list invites more files. */
+.dropmore {
+  display: none;
+}
+
+@media (min-width: 960px) {
+  .listhead {
+    position: static;
+    margin: 0;
+    padding: 0 0 var(--space-3);
+    background: none;
+  }
+
+  :root[data-scrolled] .app .listhead {
+    box-shadow: none;
+  }
+
+  .listhead__actions .btn--ghost {
+    margin-right: 0;
+  }
+
+  .dropmore {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    min-height: 8rem;
+    margin-top: var(--space-2);
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    color: var(--color-text-2);
+    font: var(--type-caption);
+    transition:
+      background-color var(--dur-fast) var(--ease-standard),
+      border-color var(--dur-fast) var(--ease-standard),
+      color var(--dur-fast) var(--ease-standard);
+  }
+
+  .dropmore:hover {
+    border-color: var(--color-accent);
+    background: var(--color-hover);
+    color: var(--color-text);
+  }
+
+  .dropmore > .icon {
+    margin-bottom: var(--space-1);
+    color: var(--color-text-3);
+  }
+
+  .dropmore__title {
+    color: var(--color-text);
+    font: var(--type-label);
+  }
+
+  .dropmore__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}

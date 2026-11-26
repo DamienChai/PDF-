@@ -1,0 +1,402 @@
+/* The shell: page grid, top bar, the three layouts (phone, tablet column, desktop panes),
+   and the empty state. */
+
+:root {
+  /* Height of everything pinned to the top on the phone: bar, mode switch, safe area. */
+  --topbar-total: calc(var(--topbar-h) + var(--seg-h) + var(--space-2) + var(--safe-top));
+  /* 1 while the action area is pinned to the bottom edge (read by src/ui/viewport.ts). */
+  --dock-pinned: 1;
+  /* Width of the single column on tablets and narrow desktop windows. */
+  --column: 600px;
+  --column-pad: max(var(--gutter), calc(50vw - var(--column) / 2));
+}
+
+.page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+/* Top bar ----------------------------------------------------------------- */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: var(--safe-top) var(--safe-right) 0 var(--safe-left);
+  background: var(--color-bg);
+  transition: box-shadow var(--dur-base) var(--ease-standard);
+}
+
+/* Content has scrolled underneath: the bar gets an edge. With files, the list header below it
+   is pinned too and carries the edge instead. */
+:root[data-scrolled] .app[data-phase='empty'] .topbar,
+:root[data-scrolled] .app[data-mode='lock'] .topbar {
+  box-shadow: var(--shadow-edge);
+}
+
+.topbar__inner {
+  display: grid;
+  grid-template-areas:
+    'brand actions'
+    'mode mode';
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--space-2);
+  padding: 0 var(--column-pad) var(--space-2);
+}
+
+.brand {
+  display: inline-flex;
+  grid-area: brand;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: var(--topbar-h);
+}
+
+.brand__mark {
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+.brand__name {
+  overflow: hidden;
+  font: 600 1.1875rem/1.5rem var(--font-sans);
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar__mode {
+  grid-area: mode;
+}
+
+.topbar__mode .segmented__option {
+  font-size: 1rem;
+}
+
+.topbar__actions {
+  display: flex;
+  grid-area: actions;
+  align-items: center;
+  gap: var(--space-1);
+  /* The settings glyph, not its 48px hit area, meets the edge of the column. */
+  margin-right: calc((var(--icon-btn) - 1.25rem) / -2 + 2px);
+}
+
+.install-btn {
+  height: 36px;
+}
+
+/* Main -------------------------------------------------------------------- */
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+/* Focused by script when an overlay closes and its opener is gone: no ring around the page. */
+.main:focus-visible {
+  outline: none;
+}
+
+/* The stage takes the room above the pinned bar, and more than that (the page scrolls) when
+   its content needs it: nothing is ever clipped. */
+.main--files,
+.main--empty {
+  grid-template-rows: 1fr auto;
+}
+
+/* Lock mode on the phone: list, form, then the pinned bar (see dock.css). */
+.app[data-mode='lock'] .main--files {
+  grid-template-rows: auto 1fr auto;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 calc(var(--column-pad) + var(--safe-right)) var(--space-4)
+    calc(var(--column-pad) + var(--safe-left));
+}
+
+/* Empty state ---------------------------------------------------------------
+   Phone: the hero is the stage, a card that picks files when tapped; the button sits in the
+   pinned bar under it, where the primary button of every later state will be. */
+.empty {
+  display: contents;
+}
+
+.empty__hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0 calc(var(--column-pad) + var(--safe-right)) var(--space-4)
+    calc(var(--column-pad) + var(--safe-left));
+  padding: var(--space-6) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard);
+}
+
+.empty__hero:active {
+  border-color: var(--color-accent-line);
+}
+
+.empty__art {
+  width: clamp(144px, 46vw, 208px);
+  height: auto;
+  margin-bottom: var(--space-5);
+}
+
+.empty__title {
+  font: var(--type-display);
+  letter-spacing: -0.01em;
+}
+
+.empty__text {
+  max-width: 22em;
+  margin-top: var(--space-2);
+  color: var(--color-text-2);
+  /* Chinese: wrap at punctuation, not inside a word; any break if a run is too long. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.empty__facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: var(--space-5);
+}
+
+.empty__cta {
+  position: sticky;
+  bottom: 0;
+  z-index: 15;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) calc(var(--column-pad) + var(--safe-right))
+    calc(var(--space-3) + var(--safe-bottom)) calc(var(--column-pad) + var(--safe-left));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.empty__hint {
+  display: none;
+}
+
+.privacy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 24px;
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-align: center;
+}
+
+.privacy .icon {
+  color: var(--color-text-3);
+}
+
+/* Short viewports: the hero keeps to the essentials. */
+@media (max-height: 700px) {
+  .empty__facts {
+    display: none;
+  }
+
+  .empty__art {
+    width: 128px;
+    margin-bottom: var(--space-3);
+  }
+}
+
+:root[data-compact] .empty__art {
+  width: 96px;
+}
+
+/* Keyboard open or a very short viewport: the header scrolls away with the page. */
+:root[data-compact] {
+  --topbar-total: 0px;
+}
+
+:root[data-compact] .topbar {
+  position: static;
+}
+
+/* Tablets and narrow desktop windows: the same single column, centred, with the action area as
+   a floating card of the column's width instead of a band across the window. */
+@media (min-width: 640px) and (max-width: 959.98px) {
+  .empty__cta {
+    width: min(var(--column), 100% - 2 * var(--gutter));
+    margin: 0 auto var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-pop);
+  }
+}
+
+/* Desktop: the mode switch moves into the top bar; files and inspector sit side by side. */
+@media (min-width: 960px) {
+  :root {
+    --topbar-total: calc(var(--topbar-h) + 1px);
+    --dock-pinned: 0;
+    --pane-top: var(--space-6);
+    --pane-bottom: var(--space-8);
+  }
+
+  .topbar {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  :root[data-scrolled] .app .topbar {
+    box-shadow: var(--shadow-edge);
+  }
+
+  /* Brand and actions line up with the edges of the content below. */
+  .topbar__inner {
+    grid-template-areas: 'brand mode actions';
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    max-width: var(--page-max);
+    height: var(--topbar-h);
+    margin: 0 auto;
+    padding: 0 var(--gutter);
+  }
+
+  .brand__mark {
+    width: 28px;
+    height: 28px;
+  }
+
+  .brand__name {
+    font-size: 1.0625rem;
+  }
+
+  .topbar__mode {
+    width: 15rem;
+  }
+
+  .topbar__mode .segmented__option {
+    font: var(--type-label);
+  }
+
+  .topbar__mode .segmented__option[aria-checked='true'] {
+    font-weight: 600;
+  }
+
+  .topbar__actions {
+    justify-self: end;
+    gap: var(--space-2);
+  }
+
+  .install-btn {
+    height: var(--control-h-sm);
+  }
+
+  .main--files,
+  .app[data-mode='lock'] .main--files {
+    grid-template-rows: none;
+    grid-template-columns: minmax(0, 1fr) var(--inspector-w);
+    align-items: start;
+    gap: var(--space-8);
+    width: 100%;
+    max-width: var(--page-max);
+    margin: 0 auto;
+    padding: var(--pane-top) var(--gutter) var(--pane-bottom);
+  }
+
+  /* The list pane is at least as tall as the window, so the page never scrolls for a short
+     list and the room under it is a drop target (see .dropmore). */
+  .workspace {
+    min-height: calc(100dvh - var(--topbar-total) - var(--pane-top) - var(--pane-bottom));
+    padding: 0;
+  }
+
+  /* Empty state: one centred drop target that grows with the window. */
+  .main--empty {
+    grid-template-rows: auto;
+    place-content: center;
+    place-items: center;
+    padding: var(--space-8) var(--gutter) 10vh;
+  }
+
+  .empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: min(100vw - 2 * var(--gutter), clamp(40rem, 54vw, 68rem));
+    min-height: clamp(26rem, 58vh, 46rem);
+    padding: var(--space-12) var(--space-10) var(--space-8);
+    border: 1.5px dashed var(--color-border-strong);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface);
+    text-align: center;
+    cursor: pointer;
+    transition:
+      border-color var(--dur-fast) var(--ease-standard),
+      background-color var(--dur-fast) var(--ease-standard);
+  }
+
+  .empty:hover {
+    border-color: var(--color-accent);
+  }
+
+  .empty__hero {
+    display: contents;
+  }
+
+  .empty__art {
+    width: clamp(168px, 13vw, 264px);
+  }
+
+  .empty__facts {
+    display: flex;
+    order: 3;
+    margin-top: var(--space-8);
+  }
+
+  .empty__cta {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: default;
+  }
+
+  .empty__cta .btn {
+    width: auto;
+    min-width: 12rem;
+  }
+
+  .empty__cta .privacy {
+    order: 3;
+    margin-top: var(--space-2);
+  }
+
+  .empty__hint {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font: var(--type-caption);
+    color: var(--color-text-2);
+  }
+}

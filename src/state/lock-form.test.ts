@@ -322,6 +322,41 @@ describe('lock form: separate permissions password', () => {
   });
 });
 
+describe('lock form: summary of the advanced options', () => {
+  const keys = (form: ReturnType<typeof setup>['form']) =>
+    form.advancedSummary.value.list.map((item) => item.key);
+
+  it('names the algorithm when everything else is at its default', () => {
+    const { form } = setup();
+    expect(keys(form)).toEqual(['algorithm.chip.aes-256']);
+    form.setAlgorithm('aes-128');
+    expect(keys(form)).toEqual(['algorithm.chip.aes-128']);
+  });
+
+  it('mentions a permissions password, and restrictions once something is withheld', () => {
+    const { form } = setup();
+    form.setSeparateOwner(true);
+    expect(keys(form)).toEqual(['algorithm.chip.aes-256', 'lock.summary.ownerPassword']);
+    form.setPermission('print', 'low');
+    expect(keys(form)).toEqual(['algorithm.chip.aes-256', 'lock.summary.restricted']);
+    form.setPermission('print', 'full');
+    form.setPermission('extract', false);
+    expect(keys(form)).toEqual(['algorithm.chip.aes-256', 'lock.summary.restricted']);
+  });
+
+  it('ignores the permission controls while they have no effect', () => {
+    const { form } = setup();
+    form.setPermission('modify', false);
+    expect(keys(form)).toEqual(['algorithm.chip.aes-256']);
+  });
+
+  it('mentions metadata that stays readable', () => {
+    const { form } = setup();
+    form.setEncryptMetadata(false);
+    expect(keys(form)).toEqual(['algorithm.chip.aes-256', 'lock.summary.metadataClear']);
+  });
+});
+
 describe('lock form: strength', () => {
   it('estimates the main password as it is typed', () => {
     const { form } = setup();

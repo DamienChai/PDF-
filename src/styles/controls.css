@@ -1,0 +1,801 @@
+/* Primitives: button, icon button, field, segmented control, switch, radio card, chip, meter,
+   progress, keyboard key, notice. */
+
+/* Hit area ----------------------------------------------------------------
+   Controls drawn smaller than a touch target get an invisible, centred ::after that restores
+   --hit in both directions. With a mouse --hit is 0. */
+.btn--sm::after,
+.link-btn::after,
+.switch::after,
+.toast__action::after,
+.disclosure-toggle::after,
+.jump::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, var(--hit));
+  height: max(100%, var(--hit));
+  transform: translate(-50%, -50%);
+}
+
+/* Button ------------------------------------------------------------------ */
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  height: var(--button-h);
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font: var(--type-button);
+  white-space: nowrap;
+  user-select: none;
+  transition:
+    background-color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard),
+    color var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+
+.btn > .btn__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn:active {
+  transform: scale(0.985);
+}
+
+.btn--primary {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.btn--primary:hover {
+  background: var(--color-accent-hover);
+}
+
+.btn--primary:active {
+  background: var(--color-accent-pressed);
+}
+
+.btn--secondary {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.btn--secondary:hover {
+  border-color: var(--color-border-control);
+  background: color-mix(in srgb, var(--color-surface), var(--color-text) 4%);
+}
+
+.btn--tonal {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+}
+
+.btn--tonal:hover {
+  background: color-mix(in srgb, var(--color-accent-subtle), var(--color-accent) 10%);
+}
+
+.btn--ghost {
+  color: var(--color-text-2);
+}
+
+.btn--ghost:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.btn--danger-ghost {
+  color: var(--color-danger);
+}
+
+.btn--danger-ghost:hover {
+  background: var(--color-danger-subtle);
+}
+
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  border-color: transparent;
+  background: var(--color-sunken);
+  color: var(--color-text-disabled);
+  transform: none;
+}
+
+.btn:disabled {
+  cursor: default;
+}
+
+/* The primary action of a screen. */
+.btn--cta {
+  height: var(--cta-h);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-lg);
+  font: var(--type-cta);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+/* Compact button for use inside cards, rows and headers. */
+.btn--sm {
+  height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  font: var(--type-label);
+  font-weight: 600;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .btn--sm {
+    padding: 0 var(--space-4);
+  }
+
+  /* In a header the button is drawn a little lower; its hit area stays 48px (see ::after). */
+  .btn--header {
+    height: 40px;
+    padding: 0 var(--space-3);
+  }
+}
+
+/* Text-only action in the accent colour. */
+.link-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-xs);
+  color: var(--color-accent-text);
+  font: var(--type-label);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Icon button: the hit area is --icon-btn, the visible shape sits inside it. */
+.icon-btn {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--icon-btn);
+  height: var(--icon-btn);
+  border-radius: var(--radius-md);
+  color: var(--color-text-2);
+}
+
+.icon-btn::before {
+  content: '';
+  position: absolute;
+  inset: var(--icon-btn-inset);
+  border-radius: var(--radius-md);
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+
+.icon-btn:hover {
+  color: var(--color-text);
+}
+
+.icon-btn:hover::before {
+  background: var(--color-hover);
+}
+
+.icon-btn:active::before {
+  background: var(--color-pressed);
+}
+
+.icon-btn > * {
+  position: relative;
+}
+
+.icon-btn:focus-visible {
+  outline-offset: calc(var(--icon-btn-inset) * -1 + 2px);
+}
+
+/* Field ------------------------------------------------------------------- */
+.field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+}
+
+.field__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.label {
+  font: var(--type-label);
+  color: var(--color-text);
+}
+
+.hint {
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-wrap: pretty;
+}
+
+.hint--danger {
+  color: var(--color-danger);
+}
+
+.input {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: var(--control-h);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-md);
+  background: var(--color-field);
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.input:hover {
+  border-color: var(--color-text-3);
+}
+
+.input:focus-within {
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.input--invalid,
+.input--invalid:hover {
+  border-color: var(--color-danger);
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+.input--invalid:focus-within {
+  border-color: var(--color-danger);
+  box-shadow:
+    inset 0 0 0 1px var(--color-danger),
+    0 0 0 3px color-mix(in srgb, var(--color-danger) 28%, transparent);
+}
+
+.input--disabled {
+  border-color: var(--color-border);
+  background: var(--color-sunken);
+  color: var(--color-text-disabled);
+}
+
+.input__icon {
+  margin-left: var(--space-3);
+  color: var(--color-text-3);
+}
+
+.input__control {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: inherit;
+  outline: 0;
+  background: none;
+  font: var(--type-input);
+  text-overflow: ellipsis;
+  /* A focused field comes to rest above the pinned action area and the toast slot over it,
+     with room to spare. */
+  scroll-margin-block: var(--space-4) calc(var(--dock-h) + var(--toast-slot, 0px) + var(--space-5));
+}
+
+.input__icon + .input__control {
+  padding-left: 10px;
+}
+
+.input__control::placeholder {
+  color: var(--color-text-3);
+  opacity: 1;
+}
+
+.input__control[type='password']:not(:placeholder-shown) {
+  letter-spacing: 0.14em;
+}
+
+.input__control--mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+}
+
+/* Trailing actions (show / hide, copy) fill the height of the field and are 48px wide on touch. */
+.input__action {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: max(var(--hit), calc(var(--control-h) - 2px));
+  height: 100%;
+  border-radius: calc(var(--radius-md) - 1px);
+  color: var(--color-text-2);
+}
+
+.input__action:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.input__action:focus-visible {
+  outline-offset: -4px;
+}
+
+/* Segmented control -------------------------------------------------------
+   A radio group. Options share the width, each at least as wide as its label; the thumb is one
+   element that slides to the selected option (placed by segmented.tsx). */
+.segmented {
+  position: relative;
+  display: flex;
+  height: var(--seg-h);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--color-sunken);
+}
+
+.segmented__thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 0;
+  border-radius: calc(var(--radius-md) - 3px);
+  background: var(--color-thumb);
+  box-shadow: var(--shadow-thumb);
+  pointer-events: none;
+}
+
+.segmented__thumb[data-ready] {
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    width var(--dur-base) var(--ease-out);
+}
+
+.segmented__option {
+  position: relative;
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 var(--space-2);
+  border-radius: calc(var(--radius-md) - 3px);
+  color: var(--color-text-2);
+  font: var(--type-label);
+  white-space: nowrap;
+  transition: color var(--dur-base) var(--ease-out);
+}
+
+.segmented__option > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.segmented__option:hover {
+  color: var(--color-text);
+}
+
+.segmented__option[aria-checked='true'] {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.segmented__option:focus-visible {
+  outline-offset: -1px;
+}
+
+/* Switch ------------------------------------------------------------------ */
+.switch {
+  position: relative;
+  flex: none;
+  width: var(--switch-w);
+  height: var(--switch-h);
+  border: 1.5px solid var(--color-border-control);
+  border-radius: var(--radius-full);
+  background: var(--color-sunken);
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+
+.switch__thumb {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  display: grid;
+  place-items: center;
+  width: calc(var(--switch-h) - 12px);
+  height: calc(var(--switch-h) - 12px);
+  margin-top: calc((var(--switch-h) - 12px) / -2);
+  border-radius: 50%;
+  background: var(--color-border-control);
+  color: transparent;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    background-color var(--dur-base) var(--ease-out),
+    width var(--dur-base) var(--ease-out),
+    height var(--dur-base) var(--ease-out),
+    margin var(--dur-base) var(--ease-out);
+}
+
+.switch__thumb .icon {
+  width: 70%;
+  height: 70%;
+  stroke-width: 3;
+}
+
+.switch[aria-checked='true'] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+}
+
+.switch[aria-checked='true'] .switch__thumb {
+  width: calc(var(--switch-h) - 8px);
+  height: calc(var(--switch-h) - 8px);
+  margin-top: calc((var(--switch-h) - 8px) / -2);
+  background: #fff;
+  color: var(--color-accent);
+  transform: translateX(calc(var(--switch-w) - var(--switch-h) - 1px));
+}
+
+/* A setting on one line: text on the left, its control on the right. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: var(--row-h);
+  padding-block: var(--space-2);
+}
+
+.row__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.row__title {
+  font: var(--type-body);
+}
+
+.row__desc {
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-wrap: pretty;
+}
+
+/* The whole row toggles its switch. */
+label.row,
+.row--toggle {
+  cursor: pointer;
+}
+
+/* Radio card (encryption algorithm) -------------------------------------- */
+.choices {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.choice {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 2px var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard);
+}
+
+/* The real radio covers the card: the card is the target, also for assistive technology. */
+.choice input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.choice__dot {
+  grid-row: span 2;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border: 1.5px solid var(--color-border-control);
+  border-radius: 50%;
+  background: var(--color-field);
+  transition: border var(--dur-fast) var(--ease-standard);
+}
+
+.choice__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--type-label);
+  font-weight: 600;
+}
+
+.choice__title .mono {
+  font-size: 0.95em;
+}
+
+.choice__desc {
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-wrap: pretty;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.choice:has(input:checked) .choice__dot {
+  border: 6px solid var(--color-accent);
+  background: #fff;
+}
+
+.choice:has(input:focus-visible) {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: 600 0.6875rem/1 var(--font-sans);
+}
+
+.badge--quiet {
+  background: var(--color-sunken);
+  color: var(--color-text-2);
+}
+
+/* Chip -------------------------------------------------------------------- */
+.chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: var(--chip-h);
+  padding: 0 9px 0 7px;
+  border-radius: var(--radius-sm);
+  background: var(--color-sunken);
+  color: var(--color-text-2);
+  font: var(--type-micro);
+  white-space: nowrap;
+  /* A state change recolours the chip instead of swapping it. */
+  transition:
+    background-color var(--dur-base) var(--ease-out),
+    color var(--dur-base) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+
+.chip--plain {
+  padding-left: 9px;
+}
+
+.chip--info {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+}
+
+.chip--success {
+  background: var(--color-success-subtle);
+  color: var(--color-success);
+}
+
+.chip--danger {
+  background: var(--color-danger-subtle);
+  color: var(--color-danger);
+}
+
+.chip--warning {
+  background: var(--color-warning-subtle);
+  color: var(--color-warning);
+}
+
+/* Nothing to do for this file: outline only, so it recedes. */
+.chip--outline {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+/* Technical facts (algorithm): outlined and set in the monospace face. */
+.chip--fact {
+  padding: 0 7px;
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  color: var(--color-text-2);
+  font: var(--type-mono);
+  letter-spacing: -0.01em;
+}
+
+.chip--fact.chip--warning {
+  background: var(--color-warning-subtle);
+  box-shadow: inset 0 0 0 1px var(--color-warning-line);
+  color: var(--color-warning);
+}
+
+/* Strength meter ---------------------------------------------------------- */
+.meter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+.meter__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 20px;
+}
+
+.meter__bar {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.meter__bar i {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-sunken);
+  transition: background-color var(--dur-base) var(--ease-out);
+}
+
+.meter__label {
+  font: var(--type-label);
+  font-weight: 600;
+  color: var(--color-text-2);
+  white-space: nowrap;
+}
+
+.meter[data-score='0'] i:nth-child(-n + 1),
+.meter[data-score='1'] i:nth-child(-n + 1) {
+  background: var(--color-danger-solid);
+}
+
+.meter[data-score='2'] i:nth-child(-n + 2) {
+  background: var(--color-warning-solid);
+}
+
+.meter[data-score='3'] i:nth-child(-n + 3),
+.meter[data-score='4'] i {
+  background: var(--color-success-solid);
+}
+
+.meter[data-score='0'] .meter__label,
+.meter[data-score='1'] .meter__label {
+  color: var(--color-danger);
+}
+
+.meter[data-score='2'] .meter__label {
+  color: var(--color-warning);
+}
+
+.meter[data-score='3'] .meter__label,
+.meter[data-score='4'] .meter__label {
+  color: var(--color-success);
+}
+
+/* Progress ---------------------------------------------------------------- */
+.progress {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--color-sunken);
+}
+
+.progress__fill {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transform: scaleX(var(--value, 0));
+  transform-origin: left center;
+  transition: transform var(--dur-base) linear;
+}
+
+.kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 6px;
+  border: 1px solid var(--color-border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-2);
+  font: 600 0.71875rem/1 var(--font-sans);
+}
+
+/* Placeholder for a fact that is still being worked out; it keeps the place of what will come. */
+.skeleton {
+  display: inline-block;
+  width: 64px;
+  height: var(--chip-h);
+  border-radius: var(--radius-sm);
+  background: var(--color-sunken);
+  animation: pulse 1400ms var(--ease-standard) infinite;
+}
+
+/* Inline notice: an icon and a sentence, optionally on a tinted ground. */
+.notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-2);
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-wrap: pretty;
+}
+
+.notice > .icon {
+  margin-top: 1px;
+}
+
+.notice--warning > .icon {
+  color: var(--color-warning-solid);
+}
+
+.notice--boxed {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-sunken);
+}
+
+.notice--boxed.notice--warning {
+  background: var(--color-warning-subtle);
+  box-shadow: inset 0 0 0 1px var(--color-warning-line);
+  color: var(--color-warning);
+}
+
+.notice--boxed.notice--warning > .icon {
+  color: var(--color-warning);
+}
+
+.notice--boxed.notice--info {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+}
+
+.notice--boxed.notice--success {
+  background: var(--color-success-subtle);
+  color: var(--color-success);
+}
+
+.notice--boxed.notice--danger {
+  background: var(--color-danger-subtle);
+  color: var(--color-danger);
+}

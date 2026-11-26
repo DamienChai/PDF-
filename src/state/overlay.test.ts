@@ -57,6 +57,27 @@ describe('overlay', () => {
     expect(controller.overlay.value).toEqual({ kind: 'details', entryId: 'f3' });
   });
 
+  it('opens the action menu of a file, and details from it without another history entry', () => {
+    const { controller, index, userBack } = setup();
+    controller.openMenu('f2');
+    expect(controller.overlay.value).toEqual({ kind: 'menu', entryId: 'f2' });
+    expect(index()).toBe(1);
+    controller.openDetails('f2');
+    expect(controller.overlay.value).toEqual({ kind: 'details', entryId: 'f2' });
+    expect(index()).toBe(1);
+    userBack();
+    expect(controller.overlay.value).toBeNull();
+    expect(index()).toBe(0);
+  });
+
+  it('closes the menu on the back gesture', () => {
+    const { controller, userBack, index } = setup();
+    controller.openMenu('f1');
+    userBack();
+    expect(controller.overlay.value).toBeNull();
+    expect(index()).toBe(0);
+  });
+
   it('gives an open overlay one history entry', () => {
     const { controller, index, history } = setup();
     controller.openSettings();
