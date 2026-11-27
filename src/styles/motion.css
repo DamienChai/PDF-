@@ -7,12 +7,6 @@
   }
 }
 
-@keyframes pulse {
-  50% {
-    opacity: 0.5;
-  }
-}
-
 @keyframes fade {
   from {
     opacity: 0;
@@ -98,10 +92,9 @@
     scroll-behavior: auto !important;
   }
 
-  /* A spinner that does not spin still says "working"; a skeleton does not need to pulse. */
+  /* A spinner that does not spin still says "working". */
   .icon--spin,
-  .art__icon--spin,
-  .skeleton {
+  .art__icon--spin {
     animation: none !important;
   }
 }

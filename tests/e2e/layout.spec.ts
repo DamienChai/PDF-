@@ -1,0 +1,352 @@
+/**
+ * Layout guards. For every combination of window size, language and theme the main states of
+ * the app are visited and measured:
+ *
+ *   - the page never scrolls sideways and nothing reaches outside the window;
+ *   - the primary button is completely on screen and can be pressed;
+ *   - a focused field comes to rest clear of the pinned action area and the top bar;
+ *   - the last file of a long list can be scrolled clear of the pinned action area;
+ *   - sheets and dialogs fit the window.
+ *
+ * 412 × 520 is the phone with its keyboard open: the window is loaded at full height and shrinks
+ * when the first field has the focus, exactly as Android Chrome resizes it.
+ *
+ * Runs in its own Playwright project (`layout`), once per combination.
+ */
+import { readFileSync } from 'node:fs';
+import { devices, type Locator, type Page } from '@playwright/test';
+import { expect, test, type App } from './support/app';
+import { fixturePath } from './support/files';
+
+interface Size {
+  name: string;
+  width: number;
+  height: number;
+  mobile: boolean;
+  /** Start at this height and shrink to `height` once a field has the focus. */
+  keyboardFrom?: number;
+}
+
+const SIZES: readonly Size[] = [
+  { name: 'small phone 360×740', width: 360, height: 740, mobile: true },
+  { name: 'Pixel 412×915', width: 412, height: 915, mobile: true },
+  { name: 'Pixel with keyboard 412×520', width: 412, height: 520, mobile: true, keyboardFrom: 915 },
+  { name: 'desktop 1440×900', width: 1440, height: 900, mobile: false },
+];
+const LOCALES = ['zh-CN', 'en-US'] as const;
+const THEMES = ['light', 'dark'] as const;
+
+/** File names as people have them: long, without a single place to break. */
+const LONG_NAMES = [
+  '2024年度财务报表及审计报告最终版本（含附注与补充说明）_第三次修订_final_FINAL(3).pdf',
+  'a_very_long_file_name_without_any_spaces_or_breaks_that_goes_on_and_on_2025-11-26_v12.pdf',
+] as const;
+
+// Without the browser type: that one belongs to the project, not to a group of tests.
+const { defaultBrowserType: _phoneBrowser, ...PHONE } = devices['Pixel 7'];
+const { defaultBrowserType: _desktopBrowser, ...DESKTOP } = devices['Desktop Chrome'];
+
+interface Problem {
+  what: string;
+}
+
+/** Everything that reaches outside the window, and whether the page scrolls sideways. */
+function overflow(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const problems: string[] = [];
+    const root = document.documentElement;
+    const width = root.clientWidth;
+    if (root.scrollWidth > width) {
+      problems.push(
+        `the page scrolls sideways (${root.scrollWidth}px wide in a ${width}px window)`,
+      );
+    }
+    const describe = (element: Element): string => {
+      const text = (element.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40);
+      const classes = element.getAttribute('class');
+      return `<${element.tagName.toLowerCase()}${classes ? ` class="${classes}"` : ''}> "${text}"`;
+    };
+    /** An ancestor that itself fits the window cuts off whatever sticks out of it. */
+    const clipped = (element: Element): boolean => {
+      for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+        if (getComputedStyle(parent).overflowX === 'visible') continue;
+        const box = parent.getBoundingClientRect();
+        if (box.left >= -1 && box.right <= width + 1) return true;
+      }
+      return false;
+    };
+    for (const element of document.body.querySelectorAll('*')) {
+      // Shapes inside an icon are positioned by the icon.
+      if (element.closest('svg') && element.tagName.toLowerCase() !== 'svg') continue;
+      if (element.closest('.sr-only')) continue;
+      if (!(element as HTMLElement).checkVisibility({ checkVisibilityCSS: true })) continue;
+      const box = element.getBoundingClientRect();
+      if (box.width === 0 || box.height === 0) continue;
+      if (box.left >= -1 && box.right <= width + 1) continue;
+      if (clipped(element)) continue;
+      problems.push(
+        `${describe(element)} reaches outside the window: ${box.left.toFixed(1)}…${box.right.toFixed(1)} of ${width}`,
+      );
+    }
+    return problems;
+  });
+}
+
+/** What covers an element at its centre and near its edges, if anything does. */
+function coveredBy(target: Locator): Promise<string[]> {
+  return target.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const points: [number, number][] = [
+      [box.left + box.width / 2, box.top + box.height / 2],
+      [box.left + box.width / 2, box.top + 3],
+      [box.left + box.width / 2, box.bottom - 3],
+    ];
+    const found: string[] = [];
+    for (const [x, y] of points) {
+      const hit = document.elementFromPoint(x, y);
+      // The field's own frame (icon, show/hide button) belongs to it.
+      const frame = element.closest('.input') ?? element;
+      if (hit && (hit === element || element.contains(hit) || frame.contains(hit))) continue;
+      const classes = hit?.getAttribute('class');
+      found.push(
+        hit
+          ? `<${hit.tagName.toLowerCase()}${classes ? ` class="${classes}"` : ''}> at ${Math.round(x)},${Math.round(y)}`
+          : `nothing at ${Math.round(x)},${Math.round(y)} (outside the window)`,
+      );
+    }
+    return found;
+  });
+}
+
+interface Checks {
+  /** Must be completely on screen and uncovered, wherever the page is scrolled to. */
+  primary?: Locator;
+  /** Given the focus and scrolled to, as the browser does; must then be uncovered. */
+  field?: Locator;
+  /** With the page scrolled to its end, the last file must be clear of the action area. */
+  lastCard?: boolean;
+  /** The open sheet or dialog must fit the window and not scroll sideways. */
+  dialog?: Locator;
+}
+
+async function check(app: App, state: string, checks: Checks): Promise<void> {
+  const { page } = app;
+  const problems: Problem[] = [];
+  const note = (what: string): void => void problems.push({ what });
+
+  for (const found of await overflow(page)) note(found);
+
+  const scrollTo = (position: 'top' | 'end'): Promise<void> =>
+    page.evaluate((where) => {
+      window.scrollTo(0, where === 'top' ? 0 : document.documentElement.scrollHeight);
+    }, position);
+
+  if (checks.primary) {
+    for (const position of ['top', 'end'] as const) {
+      // On desktop the action area is part of the page; it is on screen at the top of it.
+      if (position === 'end' && !app.phone) continue;
+      await scrollTo(position);
+      await expect(
+        checks.primary,
+        `${state}: primary button on screen (page at ${position})`,
+      ).toBeInViewport({ ratio: 1 });
+      for (const cover of await coveredBy(checks.primary)) {
+        note(`the primary button is covered by ${cover} (page at ${position})`);
+      }
+    }
+    await scrollTo('top');
+  }
+
+  if (checks.field) {
+    await checks.field.focus();
+    // What the browser does with the focused field when the keyboard opens or a key is typed.
+    await checks.field.evaluate((element) => element.scrollIntoView({ block: 'nearest' }));
+    await expect(checks.field, `${state}: focused field on screen`).toBeInViewport({ ratio: 1 });
+    for (const cover of await coveredBy(checks.field)) {
+      note(`the focused field is covered by ${cover}`);
+    }
+  }
+
+  if (checks.lastCard) {
+    await scrollTo('end');
+    const last = app.cards.last();
+    await expect(last, `${state}: last file on screen at the end of the page`).toBeInViewport({
+      ratio: 1,
+    });
+    for (const cover of await coveredBy(last)) note(`the last file is covered by ${cover}`);
+    await scrollTo('top');
+  }
+
+  if (checks.dialog) {
+    await expect(checks.dialog, `${state}: dialog on screen`).toBeInViewport({ ratio: 1 });
+    const inside = await checks.dialog.evaluate((element) => {
+      const wide: string[] = [];
+      for (const node of [element, ...element.querySelectorAll('*')]) {
+        if (node.tagName.toLowerCase() === 'pre') continue; // technical details scroll by design
+        if (
+          node.scrollWidth > node.clientWidth + 1 &&
+          getComputedStyle(node).overflowX !== 'visible'
+        ) {
+          wide.push(`<${node.tagName.toLowerCase()} class="${node.getAttribute('class') ?? ''}">`);
+        }
+      }
+      return wide;
+    });
+    for (const node of inside) note(`${node} scrolls sideways inside the dialog`);
+  }
+
+  expect(
+    problems.map((problem) => problem.what),
+    `layout problems in state "${state}"`,
+  ).toEqual([]);
+}
+
+test.describe('the guards themselves', () => {
+  test.use({ ...PHONE, viewport: { width: 412, height: 915 }, locale: 'zh-CN' });
+
+  test('notice a layout that is broken on purpose', async ({ app, page }) => {
+    await app.open();
+    await app.addFixtures('aes-256-r6.pdf', 'aes-128-r4.pdf', 'plain.pdf');
+    await app.analysed(3);
+    expect(await overflow(page)).toEqual([]);
+    expect(await coveredBy(app.dockButton('action.unlockCount', { count: 2 }))).toEqual([]);
+
+    // A card that is wider than the window.
+    await page.addStyleTag({ content: '[data-entry]:first-child { width: 520px; }' });
+    const wide = await overflow(page);
+    expect(wide.join('\n')).toContain('the page scrolls sideways');
+    expect(wide.join('\n')).toContain('reaches outside the window');
+
+    // Something lying on top of the bottom edge: the primary button and the last card's place.
+    await page.addStyleTag({
+      content:
+        '[data-entry]:first-child { width: auto; } body::after { content: ""; position: fixed; inset: auto 0 0 0; height: 60px; z-index: 99; }',
+    });
+    expect(await overflow(page)).toEqual([]);
+    expect(await coveredBy(app.dockButton('action.unlockCount', { count: 2 }))).not.toEqual([]);
+  });
+});
+
+for (const size of SIZES) {
+  for (const locale of LOCALES) {
+    for (const theme of THEMES) {
+      test.describe(`${size.name}, ${locale}, ${theme}`, () => {
+        test.use({
+          ...(size.mobile ? PHONE : DESKTOP),
+          viewport: { width: size.width, height: size.keyboardFrom ?? size.height },
+          locale,
+          colorScheme: theme,
+        });
+
+        test('every main state keeps its layout', async ({ app, page }) => {
+          await app.open();
+          await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+          await check(app, 'empty', { primary: app.chooseButton });
+
+          // --- One file --------------------------------------------------------------------
+          await app.addFixtures('aes-256-r6.pdf');
+          await app.expectState('aes-256-r6.pdf', 'needs-password');
+          if (size.keyboardFrom) {
+            // The keyboard opens under the focused field: the window loses its lower part.
+            await expect(app.unlockField).toBeFocused();
+            await page.setViewportSize({ width: size.width, height: size.height });
+            await expect(page.locator('html')).toHaveAttribute('data-compact', '');
+          }
+          await check(app, 'one file that needs a password', {
+            primary: app.dockButton('action.unlock'),
+            field: app.unlockField,
+          });
+
+          await app.unlockWith('wrong');
+          await expect(app.dock).toContainText(app.t('unlock.password.wrong'));
+          await check(app, 'wrong password', {
+            primary: app.dockButton('action.unlock'),
+            field: app.unlockField,
+          });
+
+          await app.unlockWith('user');
+          await app.expectState('aes-256-r6.pdf', 'done');
+          await check(app, 'one file unlocked', { primary: app.dockButton('entry.save') });
+
+          // --- A list: every kind of card, long names --------------------------------------
+          const chooser = page.waitForEvent('filechooser');
+          await app.addButton.click();
+          await (
+            await chooser
+          ).setFiles([
+            {
+              name: LONG_NAMES[0],
+              mimeType: 'application/pdf',
+              buffer: readFileSync(fixturePath('unicode-saslprep-r6.pdf')),
+            },
+            {
+              name: LONG_NAMES[1],
+              mimeType: 'application/pdf',
+              buffer: readFileSync(fixturePath('gbk-r3.pdf')),
+            },
+            ...['owner-only-r6.pdf', 'plain.pdf', 'damaged-unrecoverable.pdf', 'rc4-40-r2.pdf'].map(
+              (name) => ({
+                name,
+                mimeType: 'application/pdf',
+                buffer: readFileSync(fixturePath(name)),
+              }),
+            ),
+          ]);
+          await app.analysed(7);
+          await check(app, 'a mixed list', {
+            primary: app.dockButton('action.unlockCount', { count: 4 }),
+            field: app.unlockField,
+            lastCard: true,
+          });
+
+          // One password opens one of them; the two long names get retry fields on their cards.
+          await app.unlockWith('user');
+          await app.expectState('rc4-40-r2.pdf', 'done');
+          await app.expectState(LONG_NAMES[1], 'wrong-password');
+          await check(app, 'a list with results, errors and retry fields', {
+            primary: app.dockButton('action.unlockCount', { count: 2 }),
+            field: app.cardField(LONG_NAMES[1]),
+            lastCard: true,
+          });
+
+          // --- Lock mode: the form, then with every option open ----------------------------
+          await app.switchMode('lock');
+          await expect(app.lockPassword).toBeVisible();
+          await check(app, 'lock form', {
+            primary: app.dockButton('action.lockCount', { count: 2 }),
+            field: app.lockPassword,
+          });
+          await check(app, 'lock form, current password on a card', {
+            field: app.cardField(LONG_NAMES[0]),
+          });
+
+          await app.lockPassword.fill('a password long enough to show the strength meter');
+          await app.openAdvanced();
+          await app.switch('lock.owner.switch', app.dock).click();
+          await expect(app.ownerPassword).toBeVisible();
+          await check(app, 'lock form with advanced options', {
+            primary: app.dockButton('action.lockCount', { count: 2 }),
+            field: app.ownerPassword,
+          });
+          await check(app, 'lock form, confirmation', { field: app.lockConfirmation });
+
+          // --- Sheets and dialogs -----------------------------------------------------------
+          await page.evaluate(() => window.scrollTo(0, 0));
+          const settings = await app.openSettings();
+          await check(app, 'settings', { dialog: settings });
+          await app.closeDialog();
+
+          const details = await app.openDetails('rc4-40-r2.pdf');
+          await check(app, 'file details', { dialog: details });
+          await app.closeDialog();
+
+          await app.menuButton(LONG_NAMES[0]).click();
+          const menu = page.getByRole('menu');
+          await expect(menu).toBeVisible();
+          await check(app, 'file menu', {});
+          await expect(menu).toBeInViewport({ ratio: 1 });
+        });
+      });
+    }
+  }
+}

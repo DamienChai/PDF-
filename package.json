@@ -12,13 +12,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "format": "prettier --write ."
+    "e2e:report": "playwright show-report",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@preact/signals": "^2.11.4",
     "preact": "^11.2.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.1",
     "@playwright/test": "^1.63.0",
     "@preact/preset-vite": "^2.10.6",
     "@types/node": "^26.6.7",

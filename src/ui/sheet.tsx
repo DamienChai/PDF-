@@ -7,7 +7,7 @@
 import type { ComponentChildren, TargetedPointerEvent } from 'preact';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { t } from '../i18n';
-import { rememberFocus, trapTab } from './focus';
+import { focusableWithin, rememberFocus, trapTab } from './focus';
 import { Icon } from './icons';
 
 export interface SheetProps {
@@ -41,6 +41,7 @@ export function Sheet({ open, onClose, title, eyebrow, variant = 'panel', childr
   const [mounted, setMounted] = useState(open);
   const [closing, setClosing] = useState(false);
   const surface = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
   // Presence: stay mounted while the closing animation runs.
@@ -70,6 +71,15 @@ export function Sheet({ open, onClose, title, eyebrow, variant = 'panel', childr
       restore();
     };
   }, [mounted]);
+
+  // Content without a control of its own (the details of a file) could not be scrolled with the
+  // keyboard: nothing in it takes the focus. The scrolling region then takes it itself.
+  useLayoutEffect(() => {
+    const element = body.current;
+    if (!element) return;
+    if (focusableWithin(element).length === 0) element.tabIndex = 0;
+    else element.removeAttribute('tabindex');
+  });
 
   const drag = useRef<{ startY: number; lastY: number; lastTime: number; velocity: number } | null>(
     null,
@@ -169,7 +179,9 @@ export function Sheet({ open, onClose, title, eyebrow, variant = 'panel', childr
             <Icon name="x" />
           </button>
         </div>
-        <div class="sheet__body">{children}</div>
+        <div class="sheet__body" ref={body}>
+          {children}
+        </div>
       </div>
     </div>
   );

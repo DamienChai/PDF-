@@ -99,6 +99,12 @@
   overscroll-behavior: contain;
 }
 
+/* Takes the focus only when nothing inside it does (see sheet.tsx): the ring stays inside the
+   sheet's edge instead of being cut off by it. */
+.sheet__body:focus-visible {
+  outline-offset: -3px;
+}
+
 .sheet__section {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

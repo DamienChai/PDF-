@@ -139,13 +139,20 @@ function Popover({ entry }: { entry: Entry }) {
       }
       closeOverlay();
     };
-    // The page moving under a fixed popover would leave it pointing at nothing.
+    // The page moving under a fixed popover would leave it pointing at nothing. Only a scroll
+    // that moves it counts: the event of a scroll that ended just before the menu opened (the
+    // button was brought into view and pressed at once, as assistive technology does) arrives
+    // after it and must not close it again.
+    const { scrollX, scrollY } = window;
+    const onScroll = (): void => {
+      if (window.scrollX !== scrollX || window.scrollY !== scrollY) closeOverlay();
+    };
     window.addEventListener('pointerdown', dismiss, true);
-    window.addEventListener('scroll', closeOverlay, { passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', closeOverlay);
     return () => {
       window.removeEventListener('pointerdown', dismiss, true);
-      window.removeEventListener('scroll', closeOverlay);
+      window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', closeOverlay);
       restore();
     };

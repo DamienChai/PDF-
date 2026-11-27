@@ -211,13 +211,6 @@
   min-width: 0;
 }
 
-.field__top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
 .label {
   font: var(--type-label);
   color: var(--color-text);
@@ -738,16 +731,6 @@ label.row,
   background: var(--color-surface);
   color: var(--color-text-2);
   font: 600 0.71875rem/1 var(--font-sans);
-}
-
-/* Placeholder for a fact that is still being worked out; it keeps the place of what will come. */
-.skeleton {
-  display: inline-block;
-  width: 64px;
-  height: var(--chip-h);
-  border-radius: var(--radius-sm);
-  background: var(--color-sunken);
-  animation: pulse 1400ms var(--ease-standard) infinite;
 }
 
 /* Inline notice: an icon and a sentence, optionally on a tinted ground. */
