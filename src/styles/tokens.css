@@ -1,0 +1,307 @@
+/* ==========================================================================
+   PDF Key · design tokens ("calm precision")
+   Flat surfaces separated by hairlines, cool neutrals, one accent hue.
+   Indigo means "this will be acted on", green "done", amber "take note",
+   red "needs you". Sizes that set text are rem-based, so the user's font
+   size setting scales the whole interface.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* Colour · surfaces */
+  --color-bg: #f7f7fb;
+  --color-surface: #ffffff;
+  --color-raised: #ffffff; /* sheets, dialogs, menus */
+  --color-sunken: #ededf3; /* segmented track, meter and progress track, skeleton */
+  --color-thumb: #ffffff;
+  --color-field: #ffffff;
+  --color-hover: rgba(21, 22, 28, 0.05);
+  --color-pressed: rgba(21, 22, 28, 0.09);
+  --color-scrim: rgba(21, 22, 28, 0.46);
+
+  /* Colour · lines */
+  --color-border: #e3e3eb; /* hairlines: cards, dividers */
+  --color-border-strong: #cdced9; /* secondary buttons, dashed targets, outline chips */
+  --color-border-control: #8a8c9c; /* inputs, switches: 3:1 against the surface */
+
+  /* Colour · text (each at least 4.5:1 on bg and surface) */
+  --color-text: #15161c;
+  --color-text-2: #55586a;
+  --color-text-3: #676a7a;
+  --color-text-disabled: #9c9eac;
+
+  /* Colour · accent */
+  --color-accent: #4655d6;
+  --color-accent-hover: #3d4cc8;
+  --color-accent-pressed: #3442b5;
+  --color-on-accent: #ffffff;
+  --color-accent-text: #3745bd;
+  --color-accent-subtle: #eef0fc;
+  --color-accent-line: #c9cef5;
+  --color-focus: #4655d6;
+  --color-focus-ring: rgba(70, 85, 214, 0.28);
+
+  /* Colour · status: text / tint / line / solid */
+  --color-success: #17693e;
+  --color-success-subtle: #e8f5ee;
+  --color-success-line: #bfe3cf;
+  --color-success-solid: #1f8a52;
+  --color-danger: #b42835;
+  --color-danger-subtle: #fceeef;
+  --color-danger-line: #efbfc4;
+  --color-danger-solid: #cc3a47;
+  --color-warning: #7d4a00;
+  --color-warning-subtle: #fbf1dc;
+  --color-warning-line: #ead7a2;
+  --color-warning-solid: #b97800;
+
+  /* Colour · inverse (toasts) */
+  --color-inverse: #23252e;
+  --color-on-inverse: #f3f3f7;
+  --color-inverse-action: #b9c0fb;
+
+  /* Type. System fonts only; CJK falls through to the platform's UI face. */
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei UI',
+    'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, Consolas, monospace;
+
+  --type-display: 700 1.625rem/2rem var(--font-sans);
+  --type-title: 600 1.25rem/1.75rem var(--font-sans);
+  --type-heading: 600 1.0625rem/1.5rem var(--font-sans);
+  --type-body: 400 1rem/1.5rem var(--font-sans);
+  --type-body-strong: 500 1rem/1.375rem var(--font-sans);
+  --type-label: 500 0.875rem/1.25rem var(--font-sans);
+  --type-caption: 400 0.875rem/1.25rem var(--font-sans);
+  --type-micro: 600 0.8125rem/1rem var(--font-sans);
+  --type-input: 400 1rem/1.5rem var(--font-sans); /* 16px: no zoom-on-focus on phones */
+  --type-button: 600 1rem/1.25rem var(--font-sans);
+  --type-cta: 700 1.125rem/1.5rem var(--font-sans);
+  --type-mono: 500 0.8125rem/1.125rem var(--font-mono);
+  /* Notes and advice: the browser tidies their last lines (see the Chinese exception below). */
+  --wrap-notes: pretty;
+
+  /* Space: a 4px grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 12px; /* controls */
+  --radius-lg: 16px; /* cards, panels */
+  --radius-xl: 24px; /* sheets, stage */
+  --radius-full: 999px;
+
+  /* Elevation: only floating layers cast shadows. */
+  --shadow-thumb: 0 0 0 0.5px rgba(21, 22, 28, 0.06), 0 1px 2px rgba(21, 22, 28, 0.14);
+  --shadow-pop:
+    0 0 0 1px rgba(21, 22, 28, 0.06), 0 2px 6px rgba(21, 22, 28, 0.06),
+    0 10px 28px -6px rgba(21, 22, 28, 0.18);
+  --shadow-modal: 0 0 0 1px rgba(21, 22, 28, 0.05), 0 28px 72px -16px rgba(21, 22, 28, 0.32);
+  --shadow-edge: 0 1px 0 var(--color-border), 0 4px 12px -6px rgba(21, 22, 28, 0.12);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+
+  /* Sizing: touch density by default */
+  --hit: 48px; /* controls drawn smaller than this get an invisible hit area of this size */
+  --row-h: 56px; /* rows that are a target: settings, switches, menu items */
+  --control-h: 52px; /* fields */
+  --button-h: 48px;
+  --cta-h: 56px; /* the primary action of a screen */
+  --control-h-sm: 48px; /* buttons inside cards and rows */
+  --seg-h: 48px;
+  --icon-btn: 48px;
+  --icon-btn-inset: 4px;
+  --chip-h: 28px;
+  --switch-w: 52px;
+  --switch-h: 32px;
+  --topbar-h: 56px;
+  --gutter: 16px;
+  --page-max: 1280px;
+  --inspector-w: 392px;
+
+  /* Safe areas (tests override these to simulate a phone's system bars) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* Set from script (src/ui/viewport.ts): height of the sticky action area on the phone. */
+  --dock-h: 0px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #111318;
+  --color-surface: #181a20;
+  --color-raised: #1e2027;
+  --color-sunken: #23252e;
+  --color-thumb: #3b3e4b;
+  --color-field: #121419;
+  --color-hover: rgba(236, 237, 242, 0.06);
+  --color-pressed: rgba(236, 237, 242, 0.11);
+  --color-scrim: rgba(0, 0, 0, 0.62);
+
+  --color-border: #282b34;
+  --color-border-strong: #3a3d49;
+  --color-border-control: #6e7382;
+
+  --color-text: #ecedf2;
+  --color-text-2: #a8abb8;
+  --color-text-3: #9194a2;
+  --color-text-disabled: #646773;
+
+  --color-accent: #5362e0;
+  /* Lighter on hover, but only as far as white text keeps 4.5:1 on it. */
+  --color-accent-hover: #5969e3;
+  --color-accent-pressed: #4655d6;
+  --color-on-accent: #ffffff;
+  --color-accent-text: #a9b2f8;
+  --color-accent-subtle: #232744;
+  --color-accent-line: #3a4180;
+  --color-focus: #8f9af4;
+  --color-focus-ring: rgba(143, 154, 244, 0.36);
+
+  --color-success: #6fd49b;
+  --color-success-subtle: #15281f;
+  --color-success-line: #24493a;
+  --color-success-solid: #2f9b63;
+  --color-danger: #f58b93;
+  --color-danger-subtle: #2e191c;
+  --color-danger-line: #5a2a30;
+  --color-danger-solid: #d2515d;
+  --color-warning: #e8be6a;
+  --color-warning-subtle: #2b2314;
+  --color-warning-line: #4f4120;
+  --color-warning-solid: #c08a1c;
+
+  --color-inverse: #e9eaf0;
+  --color-on-inverse: #15161c;
+  --color-inverse-action: #3745bd;
+
+  --shadow-thumb: 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 10px 28px -6px rgba(0, 0, 0, 0.6);
+  --shadow-modal: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 28px 72px -16px rgba(0, 0, 0, 0.72);
+  --shadow-edge: 0 1px 0 var(--color-border), 0 4px 12px -6px rgba(0, 0, 0, 0.5);
+}
+
+/* Pointer density: mouse and trackpad get compact controls and a smaller body size.
+   Layout (one column or two panes) is decided separately, by width. */
+@media (hover: hover) and (pointer: fine) {
+  :root {
+    --type-display: 700 1.5rem/1.875rem var(--font-sans);
+    --type-title: 600 1.125rem/1.5rem var(--font-sans);
+    --type-heading: 600 0.9375rem/1.375rem var(--font-sans);
+    --type-body: 400 0.875rem/1.25rem var(--font-sans);
+    --type-body-strong: 500 0.875rem/1.25rem var(--font-sans);
+    --type-label: 500 0.8125rem/1.125rem var(--font-sans);
+    --type-caption: 400 0.8125rem/1.125rem var(--font-sans);
+    --type-micro: 600 0.75rem/1rem var(--font-sans);
+    --type-input: 400 0.875rem/1.25rem var(--font-sans);
+    --type-button: 600 0.875rem/1.25rem var(--font-sans);
+    --type-cta: 600 0.9375rem/1.25rem var(--font-sans);
+    --type-mono: 500 0.75rem/1.125rem var(--font-mono);
+
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 20px;
+
+    --hit: 0px;
+    --row-h: 40px;
+    --control-h: 36px;
+    --button-h: 36px;
+    --cta-h: 40px;
+    --control-h-sm: 30px;
+    --seg-h: 34px;
+    --icon-btn: 32px;
+    --icon-btn-inset: 0px;
+    --chip-h: 24px;
+    --switch-w: 38px;
+    --switch-h: 22px;
+  }
+}
+
+@media (min-width: 640px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+@media (min-width: 960px) {
+  :root {
+    --gutter: 32px;
+  }
+}
+
+/* From here the two panes take the window's width (less the gutters) instead of leaving a
+   margin beside a list that could use the room. */
+@media (min-width: 1440px) {
+  :root {
+    --page-max: 1440px;
+  }
+}
+
+/* Large desktop windows: wider panes, and everything one step larger so that the content does
+   not become an island of small text. */
+@media (min-width: 1600px) {
+  :root {
+    --inspector-w: 420px;
+  }
+}
+
+@media (min-width: 1920px) {
+  :root {
+    --page-max: 1640px;
+    --inspector-w: 460px;
+  }
+
+  html {
+    font-size: 112.5%;
+  }
+}
+
+@media (min-width: 1920px) and (hover: hover) and (pointer: fine) {
+  :root {
+    --row-h: 44px;
+    --control-h: 40px;
+    --button-h: 40px;
+    --cta-h: 44px;
+    --control-h-sm: 32px;
+    --seg-h: 38px;
+    --icon-btn: 36px;
+    --chip-h: 26px;
+  }
+}
+
+@media (min-width: 2400px) {
+  :root {
+    --page-max: 1920px;
+    --inspector-w: 520px;
+  }
+
+  html {
+    font-size: 125%;
+  }
+}
+
+/* Chinese notes keep their last clause together as one piece (prose.tsx, .keep) and break in
+   front of it. The browser's tidying would move that break back into the clause before:
+   "……数字和符 / 号，最多 32 个字符". */
+:root:lang(zh) {
+  --wrap-notes: wrap;
+}

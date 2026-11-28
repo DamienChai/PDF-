@@ -1,0 +1,40 @@
+{
+  "name": "pdf-key",
+  "private": true,
+  "version": "1.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "description": "Unlock and lock PDF files locally on your device. Installable PWA for Android, macOS and Windows.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test",
+    "e2e:report": "playwright show-report",
+    "screenshots": "npm run build && node scripts/generate-screenshots.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@preact/signals": "^2.11.4",
+    "preact": "^11.2.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.1",
+    "@playwright/test": "^1.63.0",
+    "@preact/preset-vite": "^2.10.6",
+    "@types/node": "^26.6.7",
+    "prettier": "^3.10.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.1.1",
+    "workbox-core": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1",
+    "workbox-strategies": "^7.4.1"
+  }
+}

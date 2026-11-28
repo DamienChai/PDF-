@@ -1,0 +1,617 @@
+/* Layers above the page: sheet / dialog, menu, toasts, the drop overlay; and the content of
+   the details and settings sheets. */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--color-scrim);
+  animation: fade var(--dur-slow) var(--ease-out) both;
+}
+
+/* A bottom sheet on the phone, a dialog from 720px. Same markup. */
+.sheet {
+  /* Read by sheet.tsx: only the bottom sheet can be dragged away. */
+  --sheet-draggable: 1;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - var(--safe-top) - var(--space-6));
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--color-raised);
+  box-shadow: var(--shadow-modal);
+  animation: sheet-in var(--dur-slow) var(--ease-out) both;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.sheet:focus-visible {
+  outline: none;
+}
+
+.modal.is-closing {
+  pointer-events: none;
+}
+
+.modal.is-closing .scrim {
+  animation: fade-out 220ms var(--ease-standard) both;
+}
+
+.modal.is-closing .sheet {
+  animation: sheet-out 220ms var(--ease-standard) both;
+}
+
+/* The header is the handle: drag it down to close the sheet. */
+.sheet__header {
+  position: relative;
+  display: grid;
+  flex: none;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) calc(var(--gutter) - 10px + var(--safe-right)) var(--space-2)
+    calc(var(--gutter) + var(--safe-left));
+  touch-action: none;
+  user-select: none;
+}
+
+.sheet__grabber {
+  position: absolute;
+  top: var(--space-2);
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: var(--color-border-strong);
+}
+
+.sheet__titles {
+  min-width: 0;
+}
+
+.sheet__eyebrow {
+  font: var(--type-caption);
+  color: var(--color-text-2);
+}
+
+.sheet__title {
+  font: var(--type-title);
+  overflow-wrap: anywhere;
+}
+
+.sheet__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-5);
+  min-height: 0;
+  padding: var(--space-2) calc(var(--gutter) + var(--safe-right))
+    calc(var(--space-6) + var(--safe-bottom)) calc(var(--gutter) + var(--safe-left));
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* Takes the focus only when nothing inside it does (see sheet.tsx): the ring stays inside the
+   sheet's edge instead of being cut off by it. */
+.sheet__body:focus-visible {
+  outline-offset: -3px;
+}
+
+.sheet__section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.section-title {
+  font: var(--type-label);
+  font-weight: 600;
+  color: var(--color-text-2);
+}
+
+/* Action sheet: a short list of commands at the bottom edge, within reach of the thumb. */
+.sheet--actions .sheet__title {
+  font: var(--type-heading);
+}
+
+.sheet--actions .sheet__body {
+  padding: 0 var(--space-2) calc(var(--space-2) + var(--safe-bottom));
+}
+
+@media (min-width: 720px) {
+  .sheet {
+    --sheet-draggable: 0;
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    width: min(35rem, calc(100vw - 48px));
+    max-height: min(47.5rem, calc(100dvh - 64px));
+    border-radius: var(--radius-xl);
+    transform: translate(-50%, -50%);
+    animation-name: dialog-in;
+  }
+
+  .modal.is-closing .sheet {
+    animation-name: dialog-out;
+  }
+
+  .sheet__grabber {
+    display: none;
+  }
+
+  .sheet__header {
+    padding: var(--space-4) var(--space-4) var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--color-border);
+    touch-action: auto;
+  }
+
+  .sheet__body {
+    padding: var(--space-5) var(--space-6) var(--space-6);
+  }
+}
+
+/* Rows grouped inside one hairline box (permissions table, settings). */
+.rows {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.rows > * {
+  padding-right: var(--space-3);
+  padding-left: var(--space-3);
+}
+
+.rows > * + * {
+  border-top: 1px solid var(--color-border);
+}
+
+.rows .row--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.rows__note {
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.row__value {
+  flex: none;
+  color: var(--color-text-2);
+  font: var(--type-caption);
+  text-align: right;
+}
+
+.row__value.mono {
+  font-family: var(--font-mono);
+}
+
+.row--install {
+  align-items: center;
+}
+
+/* Allowed / limited / not allowed: an icon and a word, never colour alone. */
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  font: var(--type-label);
+  color: var(--color-text-2);
+  white-space: nowrap;
+}
+
+.mark--allowed .icon {
+  color: var(--color-success-solid);
+}
+
+.mark--limited {
+  color: var(--color-warning);
+}
+
+.mark--limited .icon {
+  color: var(--color-warning-solid);
+}
+
+.mark--denied {
+  color: var(--color-text);
+}
+
+.mark--denied .icon {
+  color: var(--color-danger-solid);
+}
+
+/* Details ------------------------------------------------------------------ */
+.banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-sunken);
+}
+
+.banner__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-text-2);
+}
+
+.banner__title {
+  font: var(--type-body-strong);
+  font-weight: 600;
+}
+
+.banner__body {
+  margin-top: 2px;
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-wrap: var(--wrap-notes);
+}
+
+.banner--info {
+  background: var(--color-accent-subtle);
+}
+
+.banner--info .banner__icon {
+  color: var(--color-accent-text);
+}
+
+.banner--warning {
+  background: var(--color-warning-subtle);
+}
+
+.banner--warning .banner__icon {
+  color: var(--color-warning);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.tile {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.tile--wide {
+  grid-column: 1 / -1;
+}
+
+/* An odd number of facts: the last one takes the row instead of leaving a hole beside it. */
+.tiles--facts > .tile:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.tile__label {
+  font: var(--type-caption);
+  color: var(--color-text-2);
+}
+
+.tile__value {
+  font: var(--type-body-strong);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.tile__value--name {
+  font-weight: 500;
+}
+
+.tile__quiet {
+  color: var(--color-text-2);
+  font-weight: 400;
+}
+
+.warnings {
+  margin-top: var(--space-1);
+  font: var(--type-mono);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.warnings li + li {
+  margin-top: 2px;
+}
+
+/* Settings ----------------------------------------------------------------- */
+.suffixes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+.suffixes__preview {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.link-btn:disabled {
+  color: var(--color-text-disabled);
+  text-decoration: none;
+}
+
+.licenses__summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.licenses__summary::-webkit-details-marker {
+  display: none;
+}
+
+.licenses__summary .icon {
+  color: var(--color-text-2);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.licenses[open] .licenses__summary .icon {
+  transform: rotate(180deg);
+}
+
+.licenses__summary:focus-visible {
+  outline-offset: -3px;
+}
+
+.licenses__body {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}
+
+.licenses__list {
+  display: grid;
+  gap: 6px;
+  font: var(--type-caption);
+}
+
+.licenses__list li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--space-3);
+}
+
+/* Stays at the right edge when it has to take a line of its own. */
+.licenses__license {
+  margin-left: auto;
+  color: var(--color-text-2);
+  text-align: right;
+}
+
+.licenses__notices {
+  justify-self: start;
+  margin-top: var(--space-1);
+}
+
+@media (min-width: 720px) {
+  .rows .row--stack {
+    flex-direction: row;
+    align-items: center;
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+
+  .rows .row--stack .segmented {
+    width: 20rem;
+  }
+}
+
+/* Menu ---------------------------------------------------------------------- */
+.menu {
+  position: fixed;
+  z-index: 45;
+  min-width: 12.5rem;
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-pop);
+  animation: pop-in var(--dur-base) var(--ease-out) both;
+}
+
+.menu__items {
+  display: grid;
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--row-h);
+  padding: 0 var(--space-3);
+  border-radius: calc(var(--radius-lg) - 4px);
+  font: var(--type-body);
+  text-align: left;
+}
+
+.menu__item:hover,
+.menu__item:focus-visible {
+  background: var(--color-hover);
+}
+
+.menu__item:focus-visible {
+  outline-offset: -3px;
+}
+
+.menu__item .icon {
+  color: var(--color-text-2);
+}
+
+.menu__item--danger,
+.menu__item--danger .icon {
+  color: var(--color-danger);
+}
+
+/* Toasts ---------------------------------------------------------------------
+   One at a time, one position, one width: above the action area on the phone, bottom centre
+   on desktop. The page reserves this slot (scroll padding), so a focused field is never
+   brought to rest underneath a toast. */
+.toasts {
+  position: fixed;
+  right: 0;
+  bottom: calc(var(--dock-h) + var(--space-2));
+  left: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 0 calc(var(--gutter) + var(--safe-right)) 0 calc(var(--gutter) + var(--safe-left));
+  pointer-events: none;
+}
+
+:root[data-toast] {
+  --toast-slot: 64px;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: min(100%, 26rem);
+  min-height: 48px;
+  padding: 0 var(--space-1) 0 var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-inverse);
+  box-shadow: var(--shadow-pop);
+  color: var(--color-on-inverse);
+  font: var(--type-label);
+  pointer-events: auto;
+  animation: toast-in var(--dur-slow) var(--ease-out) both;
+}
+
+.toast__icon {
+  margin-left: -4px;
+}
+
+.toast--success .toast__icon {
+  color: color-mix(in srgb, var(--color-success-solid) 55%, var(--color-on-inverse));
+}
+
+.toast--error .toast__icon {
+  color: color-mix(in srgb, var(--color-danger-solid) 45%, var(--color-on-inverse));
+}
+
+.toast__text {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3) 0;
+}
+
+.toast__action {
+  position: relative;
+  flex: none;
+  height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-inverse-action);
+  font: var(--type-label);
+  font-weight: 700;
+}
+
+.toast__action:hover {
+  background: rgba(127, 127, 127, 0.22);
+}
+
+.toast__close {
+  /* A touch target of its own on the phone; the visible shape stays 36px (see ::before). */
+  width: max(40px, var(--hit));
+  height: max(40px, var(--hit));
+  color: inherit;
+  opacity: 0.75;
+}
+
+.toast__close:hover {
+  color: inherit;
+  opacity: 1;
+}
+
+.toast__close::before {
+  inset: calc((max(40px, var(--hit)) - 36px) / 2);
+}
+
+.toast__close:hover::before {
+  background: rgba(127, 127, 127, 0.22);
+}
+
+.toast :focus-visible {
+  outline-color: var(--color-inverse-action);
+}
+
+@media (min-width: 960px) {
+  .toasts {
+    bottom: var(--space-6);
+  }
+}
+
+/* Whole-window drop target while files are dragged over the app. It never receives the drop
+   itself (pointer-events: none): the window does. */
+.drop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  padding: var(--space-5);
+  background: color-mix(in srgb, var(--color-accent) 94%, transparent);
+  color: #fff;
+  pointer-events: none;
+  animation: fade var(--dur-base) var(--ease-out) both;
+}
+
+.drop__frame {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  border: 2px dashed rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-xl);
+  text-align: center;
+}
+
+.drop__icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  stroke-width: 1.25;
+}
+
+.drop__title {
+  font: 700 2.25rem/2.75rem var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+.drop__text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 400 1rem/1.5rem var(--font-sans);
+  opacity: 0.92;
+}

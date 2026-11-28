@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <title>PDF Key</title>
+    <meta
+      name="description"
+      content="Unlock and lock PDF files right on your device. Nothing is uploaded: your files and passwords never leave your phone or computer."
+    />
+    <meta name="application-name" content="PDF Key" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Browser UI / status bar colour: the page background of each theme. -->
+    <meta name="theme-color" content="#F7F7FB" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="PDF Key" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/icons/favicon-48.png" type="image/png" sizes="48x48" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <!--
+      Added by the production build (see vite.config.ts):
+      the Content-Security-Policy <meta> and <link rel="manifest" href="./manifest.webmanifest">.
+    -->
+    <!-- Applies the saved theme/language before first paint (no inline script: strict CSP). -->
+    <script src="/boot.js"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

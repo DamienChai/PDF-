@@ -1,0 +1,668 @@
+/* The action area. Phone: a bar pinned to the bottom edge; it stays above the keyboard because
+   the viewport resizes with it (interactive-widget=resizes-content). Tablet: the same bar as a
+   floating card of the column's width. Desktop: an inspector card beside the list. */
+
+.dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 15;
+  min-width: 0;
+}
+
+.dock__head,
+.dock__foot {
+  display: none;
+}
+
+.dock__bar {
+  position: relative;
+  padding: var(--space-3) calc(var(--column-pad) + var(--safe-right))
+    calc(var(--space-3) + var(--safe-bottom)) calc(var(--column-pad) + var(--safe-left));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* Three slots, always: a status line, a middle slot, the primary button. The bar is as tall
+   while a password is typed as while the result waits to be saved. */
+.dock__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  animation: rise var(--dur-base) var(--ease-out) both;
+}
+
+.dock__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 24px;
+}
+
+.dock__headline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font: var(--type-heading);
+}
+
+.dock__headline > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dock__status--quiet .dock__headline {
+  color: var(--color-text-2);
+  font: var(--type-label);
+}
+
+.dock__status--danger .dock__headline {
+  color: var(--color-danger);
+}
+
+.dock__status--success .dock__headline {
+  color: var(--color-success);
+}
+
+/* A sentence rather than a headline (the reminder of the Lock form, "nothing to unlock"):
+   quieter, and free to take two lines. */
+.dock__status--note .dock__headline {
+  align-items: start;
+  color: var(--color-text-2);
+  font: var(--type-caption);
+}
+
+.dock__status--note .dock__headline > span {
+  overflow: visible;
+  white-space: normal;
+  text-wrap: var(--wrap-notes);
+}
+
+.dock__status--note .dock__headline > .icon {
+  margin-top: 2px;
+}
+
+.dock__headline--warning > .icon {
+  color: var(--color-warning-solid);
+}
+
+.dock__aside {
+  flex: none;
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  white-space: nowrap;
+}
+
+/* The outcome is the headline: where the two do not fit one line, the remark beside it gives
+   way, not the count of finished files. */
+.dock__status--success .dock__headline {
+  flex: none;
+  max-width: 100%;
+}
+
+.dock__status--success .dock__aside {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock__aside-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.dock__aside-danger {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.dock__slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+  min-height: var(--control-h);
+}
+
+.dock__note {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-sunken);
+  color: var(--color-text-2);
+  font: var(--type-caption);
+  text-wrap: var(--wrap-notes);
+}
+
+.dock__slot--progress {
+  align-content: center;
+}
+
+.dock__slot--progress .progress {
+  height: 8px;
+  border-radius: 4px;
+}
+
+/* While the typed password is tried the bar keeps its field, so progress runs along the bar's
+   top edge, from side to side. (A child of the bar itself: the content below it is moved when
+   it changes and would take the line along.) The inspector has room for a bar of its own under
+   the field instead; see the desktop rules. */
+.dock__edge-progress {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  left: 0;
+}
+
+.dock__edge-progress .progress {
+  height: 3px;
+  border-radius: 0;
+}
+
+.dock__inline-progress {
+  display: none;
+}
+
+/* Secondary result actions. Each button is as wide as its label needs and they share what is
+   left, so "save to folder" is not cut short to match "share"; "process new files" is a quiet
+   text action whose label ends at the edge of the column. */
+.dock__slot--actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dock__slot--actions .btn {
+  flex: 1 1 auto;
+  height: var(--button-h);
+  padding: 0 var(--space-3);
+}
+
+/* Phones: the labels need the room more than the icons do. */
+@media (max-width: 479.98px) {
+  .dock__slot--actions .btn > .icon {
+    display: none;
+  }
+}
+
+.dock__slot--actions .dock__reset {
+  flex: 0 0 auto;
+  margin-right: calc(var(--space-2) * -1);
+  margin-left: auto;
+  padding: 0 var(--space-2);
+  color: var(--color-accent-text);
+}
+
+/* The hints under the shared field are for the roomier desktop inspector; on the phone the
+   status line carries the message and the bar keeps its height. */
+.dock__help {
+  display: none;
+}
+
+.dock__primary {
+  display: grid;
+  min-width: 0;
+}
+
+.dock__primary .btn__icon {
+  display: none;
+}
+
+/* The field inside the pinned bar is always in view; it must never scroll the page. */
+.dock__bar .input__control {
+  scroll-margin: 0;
+}
+
+.input--busy {
+  border-color: var(--color-border);
+  color: var(--color-text-2);
+}
+
+/* Lock mode: the form is too long for a bar. It joins the page as a card, and only the
+   reminder and the button stay pinned. */
+.dock--long {
+  display: contents;
+}
+
+.dock--long .dock__form {
+  align-self: start;
+  min-width: 0;
+  margin: 0 calc(var(--column-pad) + var(--safe-right)) var(--space-4)
+    calc(var(--column-pad) + var(--safe-left));
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.dock--long .dock__bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 15;
+}
+
+/* Lock form --------------------------------------------------------------- */
+.lockform {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.lockform:disabled {
+  opacity: 0.6;
+}
+
+.lockform__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.lockform__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.advanced-toggle {
+  display: grid;
+  /* The summary of what is set sits under the title, like the description of a switch: beside
+     it, "AES-256, permissions password, restricted" has no room on a phone or in the inspector. */
+  grid-template-areas:
+    'title icon'
+    'summary icon';
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px var(--space-3);
+  width: 100%;
+  min-height: var(--row-h);
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  text-align: left;
+}
+
+/* Closed, the toggle is the last thing in the card: tuck the padding below it in. */
+.lockform:not(.lockform--advanced) .advanced-toggle {
+  margin-bottom: calc(var(--space-3) * -1);
+}
+
+.advanced-toggle__title {
+  grid-area: title;
+  font: var(--type-label);
+  font-weight: 600;
+}
+
+.advanced-toggle__summary {
+  grid-area: summary;
+  min-width: 0;
+  color: var(--color-text-2);
+  font: var(--type-caption);
+  text-wrap: pretty;
+}
+
+.advanced-toggle .icon {
+  grid-area: icon;
+  color: var(--color-text-2);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.advanced-toggle[aria-expanded='true'] .icon {
+  transform: rotate(180deg);
+}
+
+.advanced-toggle:focus-visible {
+  outline-offset: -3px;
+}
+
+.lockform__advanced {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  min-width: 0;
+  animation: rise var(--dur-base) var(--ease-out) both;
+}
+
+.group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.group--nested {
+  gap: var(--space-4);
+  padding-bottom: var(--space-2);
+}
+
+.group__title {
+  font: var(--type-label);
+  font-weight: 600;
+}
+
+.perms {
+  margin-top: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.perms > * + * {
+  border-top: 1px solid var(--color-border);
+}
+
+.perms__print {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+}
+
+/* Three options with long English labels inside a card inside a card: on a 360px phone they fit
+   only if the options give up some of their side padding. */
+.perms__print .segmented__option {
+  padding-inline: var(--space-1);
+}
+
+.lockresult {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.lockresult__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.lockresult__value {
+  color: var(--color-text-2);
+  font: var(--type-caption);
+}
+
+/* Keyboard open (or a very short viewport): one row. The field keeps its full width next to
+   a square button; the status line shows only when it carries an error. */
+:root[data-compact] .dock__bar {
+  padding-top: var(--space-2);
+  padding-bottom: calc(var(--space-2) + var(--safe-bottom));
+}
+
+:root[data-compact] .dock--password .dock__content {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+:root[data-compact] .dock--password .dock__status {
+  grid-column: 1 / -1;
+}
+
+:root[data-compact] .dock--password .dock__status:not(.dock__status--danger),
+:root[data-compact] .dock--free .dock__status,
+:root[data-compact] .dock--free .dock__slot,
+:root[data-compact] .dock--done .dock__status,
+:root[data-compact] .dock--busy .dock__status,
+:root[data-compact] .dock--long .dock__status {
+  /* Out of sight, but still the label of the field for assistive technology. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:root[data-compact] .dock--password .dock__primary .btn {
+  width: var(--cta-h);
+  height: var(--control-h);
+  padding: 0;
+}
+
+:root[data-compact] .dock--password .dock__primary .btn__icon {
+  display: block;
+}
+
+:root[data-compact] .dock--password .dock__primary .btn__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+:root[data-compact] .dock .btn--cta {
+  height: var(--control-h);
+}
+
+/* Tablet: a floating card of the column's width. */
+@media (min-width: 640px) and (max-width: 959.98px) {
+  .dock:not(.dock--long) {
+    padding: 0 var(--column-pad) var(--space-4);
+    /* Only the card is a target; what scrolls past beside and below it stays reachable. */
+    pointer-events: none;
+  }
+
+  .dock__bar {
+    pointer-events: auto;
+  }
+
+  .dock__bar,
+  .dock--long .dock__bar {
+    padding: var(--space-4);
+    /* The progress line along the top edge follows the rounded corners. */
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-pop);
+  }
+
+  .dock--long .dock__bar {
+    bottom: var(--space-4);
+    justify-self: center;
+    width: min(var(--column), 100% - 2 * var(--gutter));
+    margin-bottom: var(--space-4);
+  }
+}
+
+/* Desktop: the inspector. A card that follows the scroll; its body scrolls inside it when the
+   window is short, with the primary action pinned under it. */
+@media (min-width: 960px) {
+  .dock,
+  .dock--long {
+    position: sticky;
+    top: calc(var(--topbar-total) + var(--pane-top));
+    bottom: auto;
+    z-index: auto;
+    display: flex;
+    flex-direction: column;
+    /* Exactly the room between top bar and window edge: the page itself never scrolls for it. */
+    max-height: calc(100dvh - var(--topbar-total) - var(--pane-top) - var(--pane-bottom));
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+  }
+
+  .dock__head {
+    display: block;
+    flex: none;
+    padding: var(--space-5) var(--space-5) 0;
+  }
+
+  .dock__title {
+    font: var(--type-title);
+  }
+
+  .dock--long .dock__form {
+    flex: 1 1 auto;
+    align-self: stretch;
+    min-height: 0;
+    margin: 0;
+    padding: var(--space-4) var(--space-5) var(--space-5);
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 0;
+    border-radius: 0;
+    /* Scroll shadows: an edge appears where content continues beyond the visible part. */
+    background:
+      linear-gradient(var(--color-surface) 30%, transparent) center top / 100% 32px no-repeat local,
+      linear-gradient(transparent, var(--color-surface) 70%) center bottom / 100% 32px no-repeat
+        local,
+      linear-gradient(color-mix(in srgb, var(--color-text) 14%, transparent), transparent) center
+        top / 100% 10px no-repeat scroll,
+      linear-gradient(transparent, color-mix(in srgb, var(--color-text) 14%, transparent)) center
+        bottom / 100% 10px no-repeat scroll,
+      var(--color-surface);
+  }
+
+  .dock__bar,
+  .dock--long .dock__bar {
+    position: static;
+    flex: none;
+    padding: var(--space-4) var(--space-5) var(--space-5);
+    border-top: 0;
+    background: none;
+  }
+
+  .dock--long .dock__bar {
+    border-top: 1px solid var(--color-border);
+  }
+
+  .dock__content {
+    gap: var(--space-3);
+  }
+
+  .dock__headline {
+    font: var(--type-label);
+    font-weight: 600;
+  }
+
+  .dock__status--success .dock__headline {
+    font: var(--type-heading);
+  }
+
+  .dock__help {
+    display: block;
+  }
+
+  /* Progress of a typed password: a bar of its own under the field. */
+  .dock__edge-progress {
+    display: none;
+  }
+
+  .dock__inline-progress {
+    display: block;
+  }
+
+  .dock__slot--actions {
+    flex-wrap: wrap;
+  }
+
+  .dock__foot {
+    display: grid;
+    flex: none;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5) var(--space-5);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .dock__foot .privacy {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .dock--long .dock__foot {
+    display: none;
+  }
+
+  .shortcuts {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    font: var(--type-caption);
+    color: var(--color-text-2);
+  }
+
+  .shortcuts__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .shortcuts dd {
+    display: inline-flex;
+    gap: var(--space-1);
+  }
+
+  .lockform {
+    gap: var(--space-3);
+  }
+
+  .lockform__main {
+    gap: var(--space-3);
+  }
+}
+
+/* Short desktop windows: the legend gives way before the form has to scroll. */
+@media (min-width: 960px) and (max-height: 760px) {
+  .shortcuts {
+    display: none;
+  }
+}
+
+/* Wide desktop, Lock mode with the advanced options open: the inspector grows a second column,
+   so that the last switch is reachable without scrolling inside it. Passwords, algorithm and
+   metadata on the left; the permissions password and what it restricts on the right. */
+@media (min-width: 1200px) {
+  .app[data-mode='lock'] .main--files:has(.dock--wide) {
+    grid-template-columns: minmax(0, 1fr) calc(var(--inspector-w) * 2 - var(--space-8));
+  }
+
+  .lockform--advanced {
+    grid-template-rows: auto auto 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--space-8);
+  }
+
+  .lockform--advanced .lockform__advanced {
+    display: contents;
+  }
+
+  .lockform--advanced .lockform__main,
+  .lockform--advanced .advanced__algorithm,
+  .lockform--advanced .advanced__metadata {
+    grid-column: 1;
+  }
+
+  .lockform--advanced .advanced__owner {
+    grid-row: 1 / span 3;
+    grid-column: 2;
+    /* A divider in the middle of the gap between the columns. */
+    align-self: stretch;
+    align-content: start;
+    margin-left: calc(var(--space-4) * -1);
+    padding-left: var(--space-4);
+    border-left: 1px solid var(--color-border);
+  }
+
+  /* The first line of the right column sits on the line of the first label of the left one. */
+  .lockform--advanced .advanced__owner > .row {
+    padding-top: 0;
+  }
+}

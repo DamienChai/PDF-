@@ -1,0 +1,2537 @@
+[
+  {
+    "file": "plain.pdf",
+    "description": "Unencrypted, classic cross-reference table, uncompressed streams",
+    "kind": "ok",
+    "tags": [
+      "plain"
+    ],
+    "userPassword": null,
+    "ownerPassword": null,
+    "userPasswordHex": null,
+    "ownerPasswordHex": null,
+    "wrongPassword": "not-the-password",
+    "size": 12100,
+    "sha256": "9ef840f33cf5268a755363dfa9e57149171bbfa244c9a7c74b314259086edd3e",
+    "pdfVersion": "1.3",
+    "encrypted": false,
+    "opensWithoutPassword": true,
+    "encryption": null,
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "c6aa68031f1669930be807806356b352acf11257c0b65a595c4789a87f96fa59",
+      "374da9dfaee37f11dc4d7b2f54868f74fb8cd51e22646e218dc8e70470107f2b",
+      "f40e72b968b0630bb6f29d61eac768f17f9f4603b373d41aa731ad82c5ba6b82",
+      "435815ea3957aeb4361814da20bd5aace533b7fa77777683e26d1ad9fddc971a"
+    ],
+    "pageText": [
+      "PDF Key fixture plain page 1 of 4\ntoken 41aa01977cc7c80d",
+      "PDF Key fixture plain page 2 of 4\ntoken b1c072fe665c57ec",
+      "PDF Key fixture plain page 3 of 4\ntoken de007291c8360737",
+      "PDF Key fixture plain page 4 of 4\ntoken c621928a72f52bbd"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "objstm-plain.pdf",
+    "description": "Unencrypted, object streams and a cross-reference stream",
+    "kind": "ok",
+    "tags": [
+      "plain",
+      "objstm"
+    ],
+    "userPassword": null,
+    "ownerPassword": null,
+    "userPasswordHex": null,
+    "ownerPasswordHex": null,
+    "wrongPassword": "not-the-password",
+    "size": 5957,
+    "sha256": "d7da3745e9940489a601021d648e449162311e76973d6d6aab9a47dfb72fc455",
+    "pdfVersion": "1.5",
+    "encrypted": false,
+    "opensWithoutPassword": true,
+    "encryption": null,
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "92d2a91200582e566bec307b28dc55ec486bd2a3c403dda57fe8404fffbaa49f",
+      "a88e6c64f197d3415bfa4d91385439a5e3a8ef485d03e1ac110ab6ade7299989",
+      "f768a67ddb3d8c4b508bd4a415105db2190a6305bc764f6a178f0d8044b051e9",
+      "cad45597e6f59292d6bcc70bedbf9f46cc369aa916468fb98b163b7bc858976b"
+    ],
+    "pageText": [
+      "PDF Key fixture objstm-plain page 1 of 4\ntoken 954f76e5c95f68d7",
+      "PDF Key fixture objstm-plain page 2 of 4\ntoken b79bab31918fe7b5",
+      "PDF Key fixture objstm-plain page 3 of 4\ntoken 873ea685d0a9607b",
+      "PDF Key fixture objstm-plain page 4 of 4\ntoken 894a69e4cc67d06f"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "linearized-plain.pdf",
+    "description": "Unencrypted, linearized",
+    "kind": "ok",
+    "tags": [
+      "plain",
+      "linearized"
+    ],
+    "userPassword": null,
+    "ownerPassword": null,
+    "userPasswordHex": null,
+    "ownerPasswordHex": null,
+    "wrongPassword": "not-the-password",
+    "size": 7244,
+    "sha256": "37766c3c1bb5514ef2ea59f5d837bf76f90aea2e224327d43eca2c888dd34c7d",
+    "pdfVersion": "1.3",
+    "encrypted": false,
+    "opensWithoutPassword": true,
+    "encryption": null,
+    "pageCount": 4,
+    "linearized": true,
+    "pageContentSha256": [
+      "b1e7df9dfcf9ec6c61b16e1d01f34562fb65ff61b885aafb6825c1304ce03969",
+      "105e42af47f757fb6e93fb8649cd34f20a34206194db68cf8e6e9c68e781135a",
+      "ac5e30e4fb6bcd62dee8eb43e7f5387d62e7bdbee83a4effef8fa08cb70e42d6",
+      "61f70c4e37118e0a2f98f501a4da31249cd66a823da14c9277cf9bd52b3679c3"
+    ],
+    "pageText": [
+      "PDF Key fixture linearized-plain page 1 of 4\ntoken aae4390a57b6255a",
+      "PDF Key fixture linearized-plain page 2 of 4\ntoken db220d2854ffd647",
+      "PDF Key fixture linearized-plain page 3 of 4\ntoken da49c8f3ad2700e1",
+      "PDF Key fixture linearized-plain page 4 of 4\ntoken 321670cd499f178b"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "rc4-40-r2.pdf",
+    "description": "RC4 40-bit (R2)",
+    "kind": "ok",
+    "tags": [],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6896,
+    "sha256": "96c3f9927093444739260ec05ab6cf9dc108d6a94e1fc0b4b69a4e58390810af",
+    "pdfVersion": "1.3",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 40,
+      "revision": 2,
+      "version": 1,
+      "rawPermissions": -60,
+      "permissions": {
+        "print": "full",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": false,
+        "assemble": false,
+        "accessibility": false
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "d50bb74fbb1a1ab10c4391bf3defcea69c6de9e38400aeec602e96eff2111352",
+      "778f8ec9f5a1a02ecee96d358429ccd0a6359762cf2ec4b4b4ff3e8ae64be755",
+      "91330b6c01547f0c1e537d94cd1285509b8cd5c9307dde2145eff074cb5edd0f",
+      "fbe1c814b30d51f56e43f9005a46081d6d8fcdc0cdadff6966476deb77db48df"
+    ],
+    "pageText": [
+      "PDF Key fixture rc4-40 page 1 of 4\ntoken f767baba09cb3218",
+      "PDF Key fixture rc4-40 page 2 of 4\ntoken de9281df593cf568",
+      "PDF Key fixture rc4-40 page 3 of 4\ntoken a02e78a3aef77c13",
+      "PDF Key fixture rc4-40 page 4 of 4\ntoken 9a1a6c5a704c55ff"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "rc4-128-r3.pdf",
+    "description": "RC4 128-bit (R3)",
+    "kind": "ok",
+    "tags": [],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6904,
+    "sha256": "892b05b7edf95fe7384c14d55071e563e5cc747eb9c209d454fef23edba14cdd",
+    "pdfVersion": "1.4",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -3132,
+      "permissions": {
+        "print": "low",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "610290fc0903f0bf8a7b6308b8643fce8be5dfa97fab400ceb094b72b45872a4",
+      "771d2a02bf3ebb8255487f5e40b9b940c8632d7ee2521f632de66a34fd71bc38",
+      "051922bdfb0f8f56e86ee1cc7e97cec121727e5f260a400fbac9ce656fbc906e",
+      "f1e49c33b2b470c786200a4bf2aef77292ef85ad5d3f90d85a3e106f3569b73c"
+    ],
+    "pageText": [
+      "PDF Key fixture rc4-128 page 1 of 4\ntoken d9042736672487d8",
+      "PDF Key fixture rc4-128 page 2 of 4\ntoken a9ffd3bdaa1865c1",
+      "PDF Key fixture rc4-128 page 3 of 4\ntoken 2b25b3e37212f7bf",
+      "PDF Key fixture rc4-128 page 4 of 4\ntoken 270e9a0c7b522686"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "rc4-128-r4.pdf",
+    "description": "RC4 128-bit through a V2 crypt filter (R4)",
+    "kind": "ok",
+    "tags": [],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7026,
+    "sha256": "a78f102523d96fbc45388924cc8b962f3870a448df3fe15f50f238b2d8d71b2b",
+    "pdfVersion": "1.5",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": false
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "424880641db95fc43d6ad2e7d41c56e514fa5a4a2e505f153cdca71b2cc4e244",
+      "155a06686dd39bfd1e33e387ef0ff4b076c2b8f2f0a9a414269472a6eb7c5e2d",
+      "fd7262e029f56b5aa388697f1857b88f5094430163775bc5e5398d30324c3778",
+      "d92b23fa123f9ae216e39dd78bc0951ce2ad7bd683906d6ce702755c0f2f7ba3"
+    ],
+    "pageText": [
+      "PDF Key fixture rc4-r4 page 1 of 4\ntoken 6605ea25faee6e90",
+      "PDF Key fixture rc4-r4 page 2 of 4\ntoken 4fc260c2898c7625",
+      "PDF Key fixture rc4-r4 page 3 of 4\ntoken d54ad73e0ce35f97",
+      "PDF Key fixture rc4-r4 page 4 of 4\ntoken 612699de7eb5c1b1"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "aes-128-r4.pdf",
+    "description": "AES-128 (R4)",
+    "kind": "ok",
+    "tags": [],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7590,
+    "sha256": "9199c9540ec4c45d9dbe9ba4bc92a1da0937586c5e0812ea25278ddfdf8f74b7",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -3132,
+      "permissions": {
+        "print": "low",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "36904ceaf8221b8752c359c397bfad054b28b7ae4d7261251bf47da2debf97e3",
+      "a7ce97b0051e4000309575360f4f01b9d9a6dc5f5f80d8cf24aa44f4df3479d9",
+      "b7f9a8f806f24108ae0c47e90b835adccbf742957a429bb161dba9666a0aa722",
+      "7bffc9cce7050118db571e4b571614c588c26dbf975a3c1ad7cba8d0c3a132ce"
+    ],
+    "pageText": [
+      "PDF Key fixture aes-128 page 1 of 4\ntoken 25c1b0c3bd61fdf2",
+      "PDF Key fixture aes-128 page 2 of 4\ntoken e8e5b278328d2aa1",
+      "PDF Key fixture aes-128 page 3 of 4\ntoken fd9542f781d1fad4",
+      "PDF Key fixture aes-128 page 4 of 4\ntoken 65acd60771b86015"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "aes-256-r5.pdf",
+    "description": "AES-256, deprecated R5 key derivation",
+    "kind": "ok",
+    "tags": [],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7919,
+    "sha256": "88fe89f50fb4f7676b93e03906b3cf0778bc8fd9435ffe1067cd41dc0f35f4d3",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256-r5",
+      "keyBits": 256,
+      "revision": 5,
+      "version": 5,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "e99e97967f31201de77f57f2ea11080afbbd4dbff5c9ec0880a65b6a6f77cc40",
+      "51cc939da7d7f0e3fa1daa379abcb704152fc822015df34332bd89cc95040d8f",
+      "24276ec9c332c35d6c2454336cac07ea6275ddb73fdab59662746d142d3c485d",
+      "760bb9f33aaeb65c5551fe1ad96efa4020451a5e58c43918555f1ff4e963815c"
+    ],
+    "pageText": [
+      "PDF Key fixture aes-256-r5 page 1 of 4\ntoken d506c0b4209c81eb",
+      "PDF Key fixture aes-256-r5 page 2 of 4\ntoken 73d38a754606c2c7",
+      "PDF Key fixture aes-256-r5 page 3 of 4\ntoken f770b27a93292825",
+      "PDF Key fixture aes-256-r5 page 4 of 4\ntoken 77c15eabcb2ef2d7"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "aes-256-r6.pdf",
+    "description": "AES-256 (R6, PDF 2.0)",
+    "kind": "ok",
+    "tags": [],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7890,
+    "sha256": "5179b4918f50e1dbd62ccb18341af1c4129c47234090f84730c92e7bbb23d7c4",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -3132,
+      "permissions": {
+        "print": "low",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "77b0d384279e75f8e0e0f8bd1d9f1aada7fa99dada702fc5c00f084bf10e2b96",
+      "8e7000375339fb4ac660926c45cf476cf517ab914458e80aaf9c1101cea9c768",
+      "266492ffcc835128955fca14506d73fcd3c6b38c066ba3a55a7040673f70ead3",
+      "85e80eb57c9b6e43747b7ccfa130a3a7dedecd73ac5207278eafa68d17d0b376"
+    ],
+    "pageText": [
+      "PDF Key fixture aes-256 page 1 of 4\ntoken 80028aa24f4e45b1",
+      "PDF Key fixture aes-256 page 2 of 4\ntoken 02f3bce879691238",
+      "PDF Key fixture aes-256 page 3 of 4\ntoken 55d7789f3db3bd18",
+      "PDF Key fixture aes-256 page 4 of 4\ntoken 41faa84a9714a20b"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "same-password-r6.pdf",
+    "description": "AES-256, user and owner password identical",
+    "kind": "ok",
+    "tags": [],
+    "userPassword": "both",
+    "ownerPassword": "both",
+    "userPasswordHex": "626f7468",
+    "ownerPasswordHex": "626f7468",
+    "wrongPassword": "not-the-password",
+    "size": 7584,
+    "sha256": "f62b4d28b890a80aee397dc18a80bf564ec891de8d761e60b2c01820183a47cf",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "aca91c98d408e6a7fe0e8f424a9f9ca69d78d6ce224c64b998068bf9ffdff4de",
+      "9af33ca76cf625b0e041487d37d0f75ec96b09206ebd1db33715edbe85560f7c",
+      "8e215ff58672fe275a675bf5af34a3ef8ca66a9733dab7baa40e174efb95c8b4",
+      "241d6d38fafb03c00263c393227a0b235eab3d499187c82a414f6ed4431b5468"
+    ],
+    "pageText": [
+      "PDF Key fixture same-password page 1 of 4\ntoken b1f299a94ff33657",
+      "PDF Key fixture same-password page 2 of 4\ntoken 9d73ff6c62af7a55",
+      "PDF Key fixture same-password page 3 of 4\ntoken ae5befb569951b1a",
+      "PDF Key fixture same-password page 4 of 4\ntoken f292c0099c448095"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "same-password-r3.pdf",
+    "description": "RC4-128, user and owner password identical",
+    "kind": "ok",
+    "tags": [],
+    "userPassword": "both",
+    "ownerPassword": "both",
+    "userPasswordHex": "626f7468",
+    "ownerPasswordHex": "626f7468",
+    "wrongPassword": "not-the-password",
+    "size": 6977,
+    "sha256": "b5aee798039025e0436e98bcacba0735dcc8ec5b73e1adabc749b785a041f637",
+    "pdfVersion": "1.4",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "48abb504c75b047b040a1b05e967bf7c285d3c3f3fe08b6af371f236c415b500",
+      "1b96b9ead3b56a4bfb219e91deed5302831aac4e890fca60a65f26c33be74338",
+      "434d98fe030945cf383fa7dc4ef2546cdbbfe956c2da0c4370de11a8b4cb45ed",
+      "2ab2616bc5e5978e1995eb38d025aa2d5ac99cc44deb5dc5c8d2ab0bbcc87f88"
+    ],
+    "pageText": [
+      "PDF Key fixture same-password-r3 page 1 of 4\ntoken 419358bda6cf44b0",
+      "PDF Key fixture same-password-r3 page 2 of 4\ntoken d6a51fe1800af914",
+      "PDF Key fixture same-password-r3 page 3 of 4\ntoken 2769085095236e4d",
+      "PDF Key fixture same-password-r3 page 4 of 4\ntoken 3d68129edb66b3a4"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "owner-only-r6.pdf",
+    "description": "AES-256, empty user password, restrictions",
+    "kind": "ok",
+    "tags": [
+      "owner-only"
+    ],
+    "userPassword": null,
+    "ownerPassword": "owner",
+    "userPasswordHex": null,
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7587,
+    "sha256": "5a79f9b4d4e1b03dfe59a4f7290a60065d38c75f029a4ccb0e107ae620b6f228",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": true,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -3392,
+      "permissions": {
+        "print": "none",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": false,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "ef9d935ee38b316c6411789a744ab46df6b861d0d894731fa9b4e2a8592724c3",
+      "cb3cbf56f97e2a0b1c3a767993fa4797636674a8d5362d8217eeb2192a4a3d23",
+      "d3094f9faf9bf26a240719e022496c723e0a303f807c156d227e71e7b88892fa",
+      "790a6d476daa4dd286ac1a0ed16614cc7b6fddf60093af38be6fe55cea58a2ad"
+    ],
+    "pageText": [
+      "PDF Key fixture owner-only-r6 page 1 of 4\ntoken c58b92eb59184e7b",
+      "PDF Key fixture owner-only-r6 page 2 of 4\ntoken 4b4e6e8fe8e22913",
+      "PDF Key fixture owner-only-r6 page 3 of 4\ntoken b5bf0d6ef3446e49",
+      "PDF Key fixture owner-only-r6 page 4 of 4\ntoken 20fb3b261b4b1b10"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "owner-only-r4.pdf",
+    "description": "AES-128, empty user password, restrictions",
+    "kind": "ok",
+    "tags": [
+      "owner-only"
+    ],
+    "userPassword": null,
+    "ownerPassword": "owner",
+    "userPasswordHex": null,
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7287,
+    "sha256": "b88174a9adb2b309a05b72351911e18f4d061cd085e01db5f82a813e7f954003",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": true,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -3132,
+      "permissions": {
+        "print": "low",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "62f1cf0601fc64f844102a63bff6abfe2dac2dbb0cd77e40db7f97d7cdd85025",
+      "8c12f20e56065ecf20cc315957ffe8e89d86c0b2519cee14b588464b3895bac4",
+      "b7a828dcedfc15386a2fd973c91eadc53d5345142b50a1ae49570a04a5ec62dc",
+      "92efe2d93e7f19f7ffd3ec3e15a10e6fef78b8cca55c411bef8387482323ea7c"
+    ],
+    "pageText": [
+      "PDF Key fixture owner-only-r4 page 1 of 4\ntoken 5b7db268f3dde675",
+      "PDF Key fixture owner-only-r4 page 2 of 4\ntoken eb3a118befe5a7b4",
+      "PDF Key fixture owner-only-r4 page 3 of 4\ntoken 997c160651af03e9",
+      "PDF Key fixture owner-only-r4 page 4 of 4\ntoken 71e2c2e30ecae2b4"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "owner-only-r3.pdf",
+    "description": "RC4-128, empty user password, restrictions",
+    "kind": "ok",
+    "tags": [
+      "owner-only"
+    ],
+    "userPassword": null,
+    "ownerPassword": "owner",
+    "userPasswordHex": null,
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6962,
+    "sha256": "b4b11df20ad205daf4f1ba796db223b492e1f9e5f6d921c271d0f1e96ef231a6",
+    "pdfVersion": "1.4",
+    "encrypted": true,
+    "opensWithoutPassword": true,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -3904,
+      "permissions": {
+        "print": "none",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": false,
+        "assemble": false,
+        "accessibility": false
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "6a93dd0103ccfc08463f3db8b5a765675196a37d7d3c827e275ba732101464b3",
+      "04f8209253eb287bfee725fdec4556580a0f2af691f5d8070f179af921076187",
+      "8c03f6f3e2cd6932c5ccd1ba692aa3622b3b2a5c161939a80f62fc30f799e9e0",
+      "183d2c8bca57baf350a5147236733de06074be9b1de9a340ca55b5494dcb47da"
+    ],
+    "pageText": [
+      "PDF Key fixture owner-only-r3 page 1 of 4\ntoken a0f76aa7a1a0ebcf",
+      "PDF Key fixture owner-only-r3 page 2 of 4\ntoken 0259de878d727824",
+      "PDF Key fixture owner-only-r3 page 3 of 4\ntoken b5066f39dfa3898c",
+      "PDF Key fixture owner-only-r3 page 4 of 4\ntoken 80b1a2a66c41548d"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "cleartext-metadata-r4.pdf",
+    "description": "AES-128 with EncryptMetadata false",
+    "kind": "ok",
+    "tags": [
+      "cleartext-metadata"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7894,
+    "sha256": "f9b6a98aeeb7d60930a21cadb38de2f50fa60d14bcbb1cdff12debb0af95435b",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": false
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "15b07abdcca36a2a7dc5c29dfeac7d70a17f38afd70e5b5a755609c976e4e052",
+      "80e64c1358f08670330dd00e4efa8a435e81f18d5795b2b049a019e751133cd3",
+      "7515cb71da5b32c33a684b764cb350d0f8aeb292cc36173ee810cc34f49af3a9",
+      "826d6e0242f2d1e80bea41c69a2eb45b988c864b590fa39ada7ebe7742d0a15e"
+    ],
+    "pageText": [
+      "PDF Key fixture cleartext-metadata-r4 page 1 of 4\ntoken 210da104063512a1",
+      "PDF Key fixture cleartext-metadata-r4 page 2 of 4\ntoken 184622a404fb9121",
+      "PDF Key fixture cleartext-metadata-r4 page 3 of 4\ntoken 74b26a803e3943ac",
+      "PDF Key fixture cleartext-metadata-r4 page 4 of 4\ntoken 85c4dc89c6af07b9"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "cleartext-metadata-r6.pdf",
+    "description": "AES-256 with EncryptMetadata false",
+    "kind": "ok",
+    "tags": [
+      "cleartext-metadata"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 8194,
+    "sha256": "271f029b0ecd9bb61ebe6560672afb74183f00271dd2e023e52419387f6d38e4",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": false
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "671436af5c51aa39977d4e7845182b48cfb2e96fb790c6ce8160bdb9a8087c04",
+      "e33f87b0de8711d556626a172cd5f5dda6c2ddbcc204f63e702fd50f4e14544f",
+      "7c69a5150b763147cc101109f003b1c7c5efe4eb02a9842a38b8731b5dd3ae8d",
+      "7f7cff6a3c732bf9d7dbb090354bbd6af28a50176b1751032398206de567612d"
+    ],
+    "pageText": [
+      "PDF Key fixture cleartext-metadata-r6 page 1 of 4\ntoken ad191a82311169a8",
+      "PDF Key fixture cleartext-metadata-r6 page 2 of 4\ntoken 81526084bc9e7de8",
+      "PDF Key fixture cleartext-metadata-r6 page 3 of 4\ntoken f732a71ef146e0d3",
+      "PDF Key fixture cleartext-metadata-r6 page 4 of 4\ntoken 6034e9dd2fd80223"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "objstm-r6.pdf",
+    "description": "AES-256, object streams and a cross-reference stream",
+    "kind": "ok",
+    "tags": [
+      "objstm"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6733,
+    "sha256": "f38eb65f2566fd907aa12e2906be08c9a82ba8ae1cd157eceb780f2a3818251d",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "71c597c5cd1372cdcc239e22ec2d475c41a0ba2bded898e3f392fc7c763b8aaf",
+      "82e9c04e8e540a1f364b73936598c6bff40167885f283cd59136fd4b04578bb2",
+      "5a307e670d12ec285736b465b373b01b339f829f3a2efe1cf787900a638f515c",
+      "18edcbef038dc8d647cdd2110ad8f5d487c236df4b8e7c5e6941a68f8259070a"
+    ],
+    "pageText": [
+      "PDF Key fixture objstm-r6 page 1 of 4\ntoken 0762dbdd38795cb9",
+      "PDF Key fixture objstm-r6 page 2 of 4\ntoken 394667ca97633166",
+      "PDF Key fixture objstm-r6 page 3 of 4\ntoken 30cf2d0de7abf50f",
+      "PDF Key fixture objstm-r6 page 4 of 4\ntoken 21b422d7dc2e34fa"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "objstm-r4.pdf",
+    "description": "AES-128, object streams and a cross-reference stream",
+    "kind": "ok",
+    "tags": [
+      "objstm"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6449,
+    "sha256": "d2bcd7dce2c0abd04f95338c745200f114cd75bfae3d2d575ac6bd6465fb918c",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "70b74b4f83eb7ed811fe72e71e3d3a1dc54e678fcc2aae7a2ec98483b4a570e3",
+      "0ddb616caecb714f6af1a36720d2b4a59eb0bad8632fc3fed1d6adbf16ae9d87",
+      "0825904d7f7321b5c95f9f01455ec8b0a09c97819fd3c3ba066809c11bfebf1f",
+      "9be4942fcbc9d06ccd6462460c4011e872360f1974179971e19f36cdd77d3f71"
+    ],
+    "pageText": [
+      "PDF Key fixture objstm-r4 page 1 of 4\ntoken 620ca7de330b18f3",
+      "PDF Key fixture objstm-r4 page 2 of 4\ntoken 7eb5886dcc243d68",
+      "PDF Key fixture objstm-r4 page 3 of 4\ntoken 015c7f3c9233e90d",
+      "PDF Key fixture objstm-r4 page 4 of 4\ntoken 1cb8067562f108f9"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "linearized-r6.pdf",
+    "description": "AES-256, linearized",
+    "kind": "ok",
+    "tags": [
+      "linearized"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 8138,
+    "sha256": "4afe171837bda932130590715edd9720fa1fb999b0922ee774b53391f3f9aa47",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": true,
+    "pageContentSha256": [
+      "437e5b0e549583f2991f3d38f1f69662df7b0174a71a62be9a3df4fe9287b060",
+      "28c459109ef8024c855b13b73148943b5019a76b4aa56c8e0a5fe06589fc14a2",
+      "492de6b31e860693110658989c9df10a3c26e2965c15b69d177f11c7b62112ba",
+      "0d807bb1eaec05b69cb91f94df9eae505e6afe4cf3766b3f9e9dc72b98b5fdf2"
+    ],
+    "pageText": [
+      "PDF Key fixture linearized-r6 page 1 of 4\ntoken 5f1de042f994f0df",
+      "PDF Key fixture linearized-r6 page 2 of 4\ntoken 84685c0acf711170",
+      "PDF Key fixture linearized-r6 page 3 of 4\ntoken ec2099187db12bb3",
+      "PDF Key fixture linearized-r6 page 4 of 4\ntoken ed7700bebc9f8aea"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "linearized-r3.pdf",
+    "description": "RC4-128, linearized",
+    "kind": "ok",
+    "tags": [
+      "linearized"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7490,
+    "sha256": "6b6375d3c4357ea066ba170ce9b2fdc6f57dc018120ab9d0c7e5dcacd89cb47a",
+    "pdfVersion": "1.4",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": true,
+    "pageContentSha256": [
+      "12f89b6d73d57a27896e56e47c81dbbe36a6e1e27d4d8f85ad0457cd3ee0dda1",
+      "bdb5b1cef5a913e0d94e5c6654ec604f22b455489c8958ad4964ab09c314de35",
+      "66e3aa35ddf955d7823bdc6c1d551097d463e2c3032f16d2ba3e09cfa91c7004",
+      "bef6293fd4769ec8142fbc15861984cd33c90f4c8a5a1b3f89eae851c1f2ef9a"
+    ],
+    "pageText": [
+      "PDF Key fixture linearized-r3 page 1 of 4\ntoken 938c64e9d28c42d1",
+      "PDF Key fixture linearized-r3 page 2 of 4\ntoken 533d598a7ec37334",
+      "PDF Key fixture linearized-r3 page 3 of 4\ntoken c5554a068b2cf860",
+      "PDF Key fixture linearized-r3 page 4 of 4\ntoken 6ccf6df55a0ea86c"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "attachment-r6.pdf",
+    "description": "AES-256 with an embedded file",
+    "kind": "ok",
+    "tags": [
+      "attachment"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 8331,
+    "sha256": "0eb70bbbca1210a2b83e7bced82a844e97b54aee7470a20bfef22230556f9c2d",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "d43395f01c0ab67b8e55937be51b943b1bd51610362f3a0a21b6842cacdd82a1",
+      "99a5fa79481796cb2a89f51f7e818f3cf6a7bfbc4fd465750dc53c0d1dd4b404",
+      "a7bc29a7ad70b400c7d9e535e360a5f564c75e7db60e2cd3404b49948c7edceb",
+      "f2a58252c4c64a431c76fb68b4b8a0ecc04e9f61fb9d5c039e73c9e0093820cd"
+    ],
+    "pageText": [
+      "PDF Key fixture attachment-r6 page 1 of 4\ntoken 438ce3c0b996f609",
+      "PDF Key fixture attachment-r6 page 2 of 4\ntoken cda6689205c0f660",
+      "PDF Key fixture attachment-r6 page 3 of 4\ntoken 813ceb31745db98c",
+      "PDF Key fixture attachment-r6 page 4 of 4\ntoken 8af04b683ef6ec82"
+    ],
+    "attachmentSha256": {
+      "note.txt": "406b6a8552c174d09f608322ac7c39c2024af659841b3e50d7c82ec4fbf6b9f9"
+    },
+    "expectWarnings": false
+  },
+  {
+    "file": "attachment-r4.pdf",
+    "description": "AES-128 with an embedded file",
+    "kind": "ok",
+    "tags": [
+      "attachment"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 8031,
+    "sha256": "495f71157dd3c2a98a535f51dae3cbcc80b8c8611fb446fe210da91770b87b32",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "b65170b10ba9a4152a5b2257772ce523c3b3ceac2703fb9fba0d618bc62b917e",
+      "acf990e8e8220594e10c0a7921894f696b38f7c453ef6fb38bb365371037f102",
+      "8133c06ce0d089e01d8af406c89be323ca2a0c4cd6c02097d4d05dbfb5007b1f",
+      "d90dd2c819cfc4ecbdda4bc98eb0e8255eeb8ffae747b3af4c49d54c78da4b0b"
+    ],
+    "pageText": [
+      "PDF Key fixture attachment-r4 page 1 of 4\ntoken 773ac5f06b2c288d",
+      "PDF Key fixture attachment-r4 page 2 of 4\ntoken be397cd6e6d3ef49",
+      "PDF Key fixture attachment-r4 page 3 of 4\ntoken 9aad1c50e5e46582",
+      "PDF Key fixture attachment-r4 page 4 of 4\ntoken 7742a84698100712"
+    ],
+    "attachmentSha256": {
+      "note.txt": "cca98d3446e472080dcb59473fd6aa77db754ee4bfdd6dad45681fac8220cf02"
+    },
+    "expectWarnings": false
+  },
+  {
+    "file": "pypdf-rc4-40.pdf",
+    "description": "Written by pypdf: RC4 40-bit",
+    "kind": "ok",
+    "tags": [
+      "pypdf"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6987,
+    "sha256": "25c4c3918f511bba753d9ef9e95ce0cf5601b8b13726b903fea26fff74611af5",
+    "pdfVersion": "1.3",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 40,
+      "revision": 2,
+      "version": 1,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "73786ff71fe675d4bc56bd5774db0cff64870542b5bf20ba4cf538cffffd4621",
+      "68393ead63b6bd42c65b697ded7d5d2881316853c9129782347a59d6c6a72bbc",
+      "835ad0e1f0f9459ccb08e0bd8cdef050d2ec3162f606f9301517da046cd57e64",
+      "0eddb17d1e1c80a9a3d3a0ad69c243ab22303e39fcb685121a4cec7fb529f610"
+    ],
+    "pageText": [
+      "PDF Key fixture pypdf-rc4-40 page 1 of 4\ntoken 074fbcbc7a4f90ef",
+      "PDF Key fixture pypdf-rc4-40 page 2 of 4\ntoken 74f3e020d9bfe014",
+      "PDF Key fixture pypdf-rc4-40 page 3 of 4\ntoken 962847d69cf5741b",
+      "PDF Key fixture pypdf-rc4-40 page 4 of 4\ntoken b179dda982125471"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "pypdf-rc4-128.pdf",
+    "description": "Written by pypdf: RC4 128-bit",
+    "kind": "ok",
+    "tags": [
+      "pypdf"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6993,
+    "sha256": "6e3f2c23949727a9932674e4c4ba4b0b95f4d1c3461ba26396ce8f2e1d4f7a10",
+    "pdfVersion": "1.3",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "6f7e97071cace8f9541ab99683a37b62ab9284dab252b4a465e2aafe69c0a764",
+      "1856d3f161992c42832383ea340e5a47d3ed89408015bcb2e0d5c2991f1ed0b7",
+      "77abd5b7749b8edae8947f17522782b10c976599879c905c95f27c6196096508",
+      "e80cd4e10d42fb7b3b7032fe7ad0db791c90d094ea217224f47b728be1fb8fd0"
+    ],
+    "pageText": [
+      "PDF Key fixture pypdf-rc4-128 page 1 of 4\ntoken 643c694b6cffdc68",
+      "PDF Key fixture pypdf-rc4-128 page 2 of 4\ntoken ed54ff7e3431fb2b",
+      "PDF Key fixture pypdf-rc4-128 page 3 of 4\ntoken 1ac74a9d0d2ff356",
+      "PDF Key fixture pypdf-rc4-128 page 4 of 4\ntoken 9dc91000c21595b7"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "pypdf-aes-128.pdf",
+    "description": "Written by pypdf: AES-128",
+    "kind": "ok",
+    "tags": [
+      "pypdf"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7310,
+    "sha256": "b09e919ba7e7c86b054ff67703f2f710a73875239ef5270ff477e9754d530a0d",
+    "pdfVersion": "1.3",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "9edbffa5ed6cf1a24eddaaafd4349f19a85b27a15311144a214fc3d43d2d974a",
+      "813b65ac48a658d5996438aca868e4eba29ffd2f66179731d2ff0fddb56af7a1",
+      "7de5df2ee51a48050390ee55c7d3d4ba42c24d20d4404ebadacff513d317858a",
+      "66325b7565273db8cdb31050a4b67789f41862bb42759c2d2b0176888e2c1094"
+    ],
+    "pageText": [
+      "PDF Key fixture pypdf-aes-128 page 1 of 4\ntoken a49760c658008b17",
+      "PDF Key fixture pypdf-aes-128 page 2 of 4\ntoken 3c45934f20076792",
+      "PDF Key fixture pypdf-aes-128 page 3 of 4\ntoken a648153cf20ae328",
+      "PDF Key fixture pypdf-aes-128 page 4 of 4\ntoken d10a38264b7c6872"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "pypdf-aes-256-r5.pdf",
+    "description": "Written by pypdf: AES-256 R5",
+    "kind": "ok",
+    "tags": [
+      "pypdf"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7590,
+    "sha256": "8f8b0eb7d8e7535dc5508aa3dc8b3513bef8e7ef87920615975b0e230549f6d4",
+    "pdfVersion": "1.3",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256-r5",
+      "keyBits": 256,
+      "revision": 5,
+      "version": 5,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "c4c995e08e8a6be299d9b619991679ebffa60ea81ca3ebcac8acbbc6694d99bb",
+      "f0d09d468ff70190f72862e1cbdbf69ad2f401c9bab07997c0743f01b6e4f5cc",
+      "346b741f590d0ed5c7380aa128b370680a02ff2cc4743aaaae7ffdfee36f07a2",
+      "6843360a3960c98f190541ec2a4b10226a32395795bf969ea617ecb403b0f823"
+    ],
+    "pageText": [
+      "PDF Key fixture pypdf-aes-256-r5 page 1 of 4\ntoken 0836ce179466b8b3",
+      "PDF Key fixture pypdf-aes-256-r5 page 2 of 4\ntoken 9262bfb2d376b6ae",
+      "PDF Key fixture pypdf-aes-256-r5 page 3 of 4\ntoken 1ab17f6427d4acf3",
+      "PDF Key fixture pypdf-aes-256-r5 page 4 of 4\ntoken 8abc79325649420f"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "pypdf-aes-256.pdf",
+    "description": "Written by pypdf: AES-256 R6",
+    "kind": "ok",
+    "tags": [
+      "pypdf"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7558,
+    "sha256": "6ab77ab71c63a2c4824f7633bec57bb2d1e1bcba0b7711c3af2a83abf298e7ee",
+    "pdfVersion": "1.3",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -4,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "59dd781482745577fe4e304972571a8e9f1075360c248af2fa60da99c334da98",
+      "5782e5f8b0fc8f78c1f72be208bb5566289ac2ab7f301e11c903ec8d982d5d4a",
+      "d3fb82a1ce3f9f2ef1fcc7fcd62b7a5484744fa1d175e01695c37542109c85b1",
+      "81a867801cf83cf55b415334056247f16a020b0cca572c32cd001426c556862b"
+    ],
+    "pageText": [
+      "PDF Key fixture pypdf-aes-256 page 1 of 4\ntoken 6af20b34b25ef30e",
+      "PDF Key fixture pypdf-aes-256 page 2 of 4\ntoken d67007e0aaa6bf5f",
+      "PDF Key fixture pypdf-aes-256 page 3 of 4\ntoken 50709349ddc712db",
+      "PDF Key fixture pypdf-aes-256 page 4 of 4\ntoken d98afd014c8eaa2e"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "reportlab-rc4-40.pdf",
+    "description": "Written by ReportLab: RC4 40-bit",
+    "kind": "ok",
+    "tags": [
+      "reportlab"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 2850,
+    "sha256": "38bee56a349c79067b4d454b162261c06d98db23dec83354d9ec729c09b37710",
+    "pdfVersion": "1.3",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 40,
+      "revision": 2,
+      "version": 1,
+      "rawPermissions": -60,
+      "permissions": {
+        "print": "full",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": false,
+        "assemble": false,
+        "accessibility": false
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 3,
+    "linearized": false,
+    "pageContentSha256": [
+      "c192b9d9c971c6904fd255e275e12c870e981c380589d7d5831b37434931e5a3",
+      "f91826aa881c019844b874e04d6f04e80df74aad60e1a345f0ae342a42c36c3f",
+      "5fac67b63d6b5a1ed995a6a697f45d6ec171e0bb0fd49e1c1e33143326da2ca5"
+    ],
+    "pageText": [
+      "PDF Key fixture reportlab-40 page 1 of 3\n",
+      "PDF Key fixture reportlab-40 page 2 of 3\n",
+      "PDF Key fixture reportlab-40 page 3 of 3\n"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "reportlab-rc4-128.pdf",
+    "description": "Written by ReportLab: RC4 128-bit",
+    "kind": "ok",
+    "tags": [
+      "reportlab"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 2766,
+    "sha256": "7bea7c8c0415baaa7212d89e41f380844416b9d08393af7a3c12149c6e34c90a",
+    "pdfVersion": "1.3",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -60,
+      "permissions": {
+        "print": "full",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": true,
+        "assemble": true,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 3,
+    "linearized": false,
+    "pageContentSha256": [
+      "e5dda94aa1e51f3b2646b55cf996f1e886417559e7df976f0eff9e62fe705eb1",
+      "87c5e2e5a43017ffd6029923a0632502116f77c18355eb535e59a5b0deae4fdd",
+      "2658ee97cbc7d3417621b737850b26dcfe47bac038ff4f8cb8577c9d827be9ce"
+    ],
+    "pageText": [
+      "PDF Key fixture reportlab-128 page 1 of 3\n",
+      "PDF Key fixture reportlab-128 page 2 of 3\n",
+      "PDF Key fixture reportlab-128 page 3 of 3\n"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "junk-prefix-r6.pdf",
+    "description": "AES-256 with bytes before the %PDF- header",
+    "kind": "ok",
+    "tags": [
+      "junk-prefix"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7924,
+    "sha256": "5d525f0f58c8eebbc73c4a25a5a5bedd5698c3ec2aa1645651b7f62887acaeba",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -3132,
+      "permissions": {
+        "print": "low",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "77b0d384279e75f8e0e0f8bd1d9f1aada7fa99dada702fc5c00f084bf10e2b96",
+      "8e7000375339fb4ac660926c45cf476cf517ab914458e80aaf9c1101cea9c768",
+      "266492ffcc835128955fca14506d73fcd3c6b38c066ba3a55a7040673f70ead3",
+      "85e80eb57c9b6e43747b7ccfa130a3a7dedecd73ac5207278eafa68d17d0b376"
+    ],
+    "pageText": [
+      "PDF Key fixture aes-256 page 1 of 4\ntoken 80028aa24f4e45b1",
+      "PDF Key fixture aes-256 page 2 of 4\ntoken 02f3bce879691238",
+      "PDF Key fixture aes-256 page 3 of 4\ntoken 55d7789f3db3bd18",
+      "PDF Key fixture aes-256 page 4 of 4\ntoken 41faa84a9714a20b"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "unicode-saslprep-r6.pdf",
+    "description": "AES-256, password stored as SASLprep(typed)",
+    "kind": "ok",
+    "tags": [
+      "unicode"
+    ],
+    "userPassword": "密码Ｐａｓｓ­word　Ⅸ",
+    "ownerPassword": "密码Ｐａｓｓ­word　Ⅸ-owner",
+    "userPasswordHex": "e5af86e7a08150617373776f7264204958",
+    "ownerPasswordHex": "e5af86e7a08150617373776f72642049582d6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7619,
+    "sha256": "83ef12775e181270726aba701772b27088091389c654863d0191777e3c01cfea",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "73974511a53ad2621e87af807d1534a6fa23b81673cb7dfd94cef33cee663b03",
+      "5c0cc6106fdafb134d8c32345497c647519758f7ff32eab3529b7ac11878a8ac",
+      "9e95ea274bede5e4aec90c5ebf90bf26f94982d8f7af085018d792812564b152",
+      "229551beeafcdfad4dea7b890db7ee559590ea9d8369edf577ab964ecb79635d"
+    ],
+    "pageText": [
+      "PDF Key fixture unicode-saslprep page 1 of 4\ntoken a24df50a82b09029",
+      "PDF Key fixture unicode-saslprep page 2 of 4\ntoken 67d85ff1ebf4e669",
+      "PDF Key fixture unicode-saslprep page 3 of 4\ntoken 5004efbedbd3ca6b",
+      "PDF Key fixture unicode-saslprep page 4 of 4\ntoken 8cc1261a0921a41c"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "unicode-raw-r6.pdf",
+    "description": "AES-256, password stored as raw UTF-8 without SASLprep",
+    "kind": "ok",
+    "tags": [
+      "unicode"
+    ],
+    "userPassword": "密码Ｐａｓｓ­word　Ⅸ",
+    "ownerPassword": "密码Ｐａｓｓ­word　Ⅸ-owner",
+    "userPasswordHex": "e5af86e7a081efbcb0efbd81efbd93efbd93c2ad776f7264e38080e285a8",
+    "ownerPasswordHex": "e5af86e7a081efbcb0efbd81efbd93efbd93c2ad776f7264e38080e285a82d6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7587,
+    "sha256": "82f12969096cdcae0af9f936406de7b6a1d2df0ff19c30a0207eb455e61f8abc",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256",
+      "keyBits": 256,
+      "revision": 6,
+      "version": 5,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "e43b1af5f51b004e951c3731e99092803f347bc459d94f0e09e8aaef8389f46e",
+      "bc459f25b4997f4df478872665ab39baaa6f83a7cccdc69d41bc62f646c92b49",
+      "6ec47ac914299e8123b49b22aa9d7bd334fd64caf97af9e8fb2b91675616fbbf",
+      "46b33b7c95fed52a8240932a383481118284006239faf3daae3fe5ab85a54651"
+    ],
+    "pageText": [
+      "PDF Key fixture unicode-raw page 1 of 4\ntoken a624d8cb4492bb7f",
+      "PDF Key fixture unicode-raw page 2 of 4\ntoken 0d8423349a75132a",
+      "PDF Key fixture unicode-raw page 3 of 4\ntoken 05f76be198e285b1",
+      "PDF Key fixture unicode-raw page 4 of 4\ntoken 52ececd8d0a09ad0"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "unicode-nfd-r5.pdf",
+    "description": "AES-256 R5, password stored decomposed (NFD)",
+    "kind": "ok",
+    "tags": [
+      "unicode"
+    ],
+    "userPassword": "pässwörd",
+    "ownerPassword": "owner",
+    "userPasswordHex": "7061cc887373776fcc887264",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7539,
+    "sha256": "58d21feda57b50b6759c8825548ea07e57b174378cf2607639752663b0270827",
+    "pdfVersion": "1.7",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-256-r5",
+      "keyBits": 256,
+      "revision": 5,
+      "version": 5,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv3",
+      "stringMethod": "aesv3",
+      "fileMethod": "aesv3",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "181f20ba1f9d668b6dd77ae746b6f00ffab67aa75ac9baa27d8a8e8ead92029c",
+      "2d8545ff933bd2b6abc10f598029a941a3c96cc4285584896371f2b4546ef0f9",
+      "5e8e50b02d2d71741c845d54dc5d3e7cf952687f9b0dba356aadd458ebae248d",
+      "6cc39303fe649028fd2bd2b4da2fc6621352b574f50eae827ad9384833d7c7ea"
+    ],
+    "pageText": [
+      "PDF Key fixture unicode-nfd page 1 of 4\ntoken 9f55f5b3b7d8da38",
+      "PDF Key fixture unicode-nfd page 2 of 4\ntoken 921f96a03a35ada4",
+      "PDF Key fixture unicode-nfd page 3 of 4\ntoken c31f785c5d0b6954",
+      "PDF Key fixture unicode-nfd page 4 of 4\ntoken 7a2798294205fd23"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "latin1-r4.pdf",
+    "description": "AES-128, Latin-1 password",
+    "kind": "ok",
+    "tags": [
+      "legacy"
+    ],
+    "userPassword": "Pässwörd",
+    "ownerPassword": "Öwner",
+    "userPasswordHex": "50e4737377f67264",
+    "ownerPasswordHex": "d6776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7207,
+    "sha256": "609628e369f4cb013a0e7e9b2abec2d92c0d5d739c5684ea86aff941e7589f04",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "89437fa05505b6f852880e67fbacf976f5b3f0f2cac2751fcefa392c0cbfed1c",
+      "02acd4cbb5e2184d9317ae6d62f13e10cfde1bd8aeb421069abe137761e3a50c",
+      "5ba81017c1c04fdb26c4330e761b8e2f62e9dc11e1d26b9f889f6ad95ec9250a",
+      "4a2a5812e4987a33f9b2a6cf33d82b35b99732fec9d1417b4a23839644bfef9b"
+    ],
+    "pageText": [
+      "PDF Key fixture latin1 page 1 of 4\ntoken 1235bbbc8136ca92",
+      "PDF Key fixture latin1 page 2 of 4\ntoken 7b95e248f92ec616",
+      "PDF Key fixture latin1 page 3 of 4\ntoken e43576b090bb33b2",
+      "PDF Key fixture latin1 page 4 of 4\ntoken a3c3b2ed9fee8d90"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "pdfdoc-r4.pdf",
+    "description": "AES-128, password in PDFDocEncoding (euro = 0xA0)",
+    "kind": "ok",
+    "tags": [
+      "legacy"
+    ],
+    "userPassword": "p€ss‰",
+    "ownerPassword": "p€ss‰o",
+    "userPasswordHex": "70a073738b",
+    "ownerPasswordHex": "70a073738b6f",
+    "wrongPassword": "not-the-password",
+    "size": 7207,
+    "sha256": "c49b80e56a814ca2ef7ccff9364b92ea4ca7c1e5a105ffabe5c6dac77e2974fa",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "88f1d163596ff1f295a42d9252e9c036eab4b1e04a0e6a250c3178bb594984bc",
+      "8c42a03afe1afb9d3bd0b634ddafd4743df48fff421e4067b2e5412239de635e",
+      "f3285ba52a82b1ed0832c95fb849ee45b692071e57b44208c0bfe23b7dec49c3",
+      "0b258e8161296f78520f2992f53f750c427dd0d8175f0e5406323b22452bc64a"
+    ],
+    "pageText": [
+      "PDF Key fixture pdfdoc page 1 of 4\ntoken eb5bf7f0949aa45e",
+      "PDF Key fixture pdfdoc page 2 of 4\ntoken aa2f78954895c73d",
+      "PDF Key fixture pdfdoc page 3 of 4\ntoken 996c28f28a2e77bc",
+      "PDF Key fixture pdfdoc page 4 of 4\ntoken 127013f6c25685d1"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "cp1252-r3.pdf",
+    "description": "RC4-128, password bytes in Windows-1252 (euro = 0x80)",
+    "kind": "ok",
+    "tags": [
+      "legacy"
+    ],
+    "userPassword": "p€ss‰",
+    "ownerPassword": "p€ss‰-owner",
+    "userPasswordHex": "7080737389",
+    "ownerPasswordHex": "70807373892d6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6898,
+    "sha256": "18be53ebf144c501578dd120fbb59f52df5645486dd294ed4d651b8a70f42516",
+    "pdfVersion": "1.4",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "fb627c47284b99062626dfa8de1901fb79af78da2c175d59fb61c72747846711",
+      "f0d5174c8169437577db242b45d2b61d0e7d835459ed91dbf8b819ffb80fb032",
+      "9c11a087b818b371f9b5fdc0c15d8a4975599de8eb4e23190ed055355699524b",
+      "13bcb5ae9c56409f9d283c0018d3289909e8edef73f02dd587ac45b04a339888"
+    ],
+    "pageText": [
+      "PDF Key fixture cp1252 page 1 of 4\ntoken 84316fd466e6e554",
+      "PDF Key fixture cp1252 page 2 of 4\ntoken f6e3141027e879dc",
+      "PDF Key fixture cp1252 page 3 of 4\ntoken ff1b45678e9cb2c7",
+      "PDF Key fixture cp1252 page 4 of 4\ntoken ad577dc76c70972e"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "utf8-r4.pdf",
+    "description": "AES-128, password bytes in UTF-8 (non-compliant writer)",
+    "kind": "ok",
+    "tags": [
+      "legacy"
+    ],
+    "userPassword": "Pässwörd",
+    "ownerPassword": "Pässwörd-owner",
+    "userPasswordHex": "50c3a4737377c3b67264",
+    "ownerPasswordHex": "50c3a4737377c3b672642d6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7207,
+    "sha256": "0e331f4a6f62e2f03821b68bcfbb9c6479717463a58a2c732e3dc3f9d39903b1",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "b3cfccb75154134f4ddcda805a99fe47e1c10c429f93783149545b0444ebde15",
+      "939fc40c13e556e6f89cadb3004cb0999358fed4c1e8596782336eb8c100cf98",
+      "cc5ee3d74501f1da75751a8d6d897c8e3cf82080256161a4630a57345dd25cdc",
+      "52b577297b590c46ff66b8eff5dc470d3072211f12f4ada5ccfde17b984d0506"
+    ],
+    "pageText": [
+      "PDF Key fixture utf8-r4 page 1 of 4\ntoken 1600ffcaf6c96645",
+      "PDF Key fixture utf8-r4 page 2 of 4\ntoken e1e4aab1ea03121e",
+      "PDF Key fixture utf8-r4 page 3 of 4\ntoken 80e2f90d53db2b51",
+      "PDF Key fixture utf8-r4 page 4 of 4\ntoken 6d58f4f32ad50192"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "gbk-r3.pdf",
+    "description": "RC4-128, password bytes are GBK-encoded Chinese",
+    "kind": "ok",
+    "tags": [
+      "legacy"
+    ],
+    "userPassword": "中文密码",
+    "ownerPassword": "中文密码-owner",
+    "userPasswordHex": "d6d0cec4c3dcc2eb",
+    "ownerPasswordHex": "d6d0cec4c3dcc2eb2d6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6879,
+    "sha256": "f787b9b11ae8e1a60dedc1fafa8ee41545f6adab1f1ea05eef90951b8aedaa8a",
+    "pdfVersion": "1.4",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "b5b51b495cc530dc6fa86e4720753c05597559b2d1fde1b05929a320a0db2ecb",
+      "a6faf38917c199d0f5df0f856e1ca95eea717435c086be6e528fcc19840c2d02",
+      "4e752aade9271b994d459ce327278dfcde54c10f879f4c205331b366a5de17b0",
+      "e01c8aa8954e9ae7729eb9aadd56475936474baaa276d7981712f136511f1bbc"
+    ],
+    "pageText": [
+      "PDF Key fixture gbk page 1 of 4\ntoken eed765989ee7e391",
+      "PDF Key fixture gbk page 2 of 4\ntoken da511636c1f62376",
+      "PDF Key fixture gbk page 3 of 4\ntoken cdcb06e96c725671",
+      "PDF Key fixture gbk page 4 of 4\ntoken 0f268ba3d653bc99"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "big5-r3.pdf",
+    "description": "RC4-128, password bytes are Big5-encoded Chinese",
+    "kind": "ok",
+    "tags": [
+      "legacy"
+    ],
+    "userPassword": "密碼十",
+    "ownerPassword": "密碼十-owner",
+    "userPasswordHex": "b14bbd58a451",
+    "ownerPasswordHex": "b14bbd58a4512d6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6888,
+    "sha256": "0b9d8b2cf6a179ef017287bc002cec2e9dbb54c02917e7c0fac39a726ceaf2e4",
+    "pdfVersion": "1.4",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "7eecdca29fc5e87fecf813b38aed6d009dfa8a1b82d1933375cdec9a99c76398",
+      "1307c0baacb20767421b0652ff0342b8065b6a9dd69edd812036475b44ed9f8e",
+      "bcd98768a1f24304b0f6a3bfe898eb9ef35d2834775bbd78d5234c57148981e1",
+      "c3ed65232f784b02229218fbe2c092d6ae63354fc5924ed649db70863cd8ecfe"
+    ],
+    "pageText": [
+      "PDF Key fixture big5 page 1 of 4\ntoken c8b6611db730e97b",
+      "PDF Key fixture big5 page 2 of 4\ntoken 1366cb5694ba1d4b",
+      "PDF Key fixture big5 page 3 of 4\ntoken fe8cf30eb0c72cfa",
+      "PDF Key fixture big5 page 4 of 4\ntoken 9d103fadf5d894c0"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "sjis-r4.pdf",
+    "description": "AES-128, password bytes are Shift_JIS-encoded Japanese",
+    "kind": "ok",
+    "tags": [
+      "legacy"
+    ],
+    "userPassword": "パスワード秘密",
+    "ownerPassword": "パスワード秘密-owner",
+    "userPasswordHex": "83708358838f815b836894e996a7",
+    "ownerPasswordHex": "83708358838f815b836894e996a72d6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7207,
+    "sha256": "d2ec0433d772b581aff5fe0e1ae4d5abfe8a0c9162e56241b515e7b4bce63429",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "4ee7de4b94f246f57ceebd132d99c0b865681c39b66883d902365bbc58411173",
+      "a4c9caf31119468ab4ae244096604c70c6d2ccabf3479779f85a464d9e05a6a8",
+      "ce7331e511c7d531d3a50473b268d9503dad30e15292ab878a611097b56c6071",
+      "de029ba0e524e82746bf34b54ac8eb9d8ba086d2761d542059b1c8f3c8d17f2d"
+    ],
+    "pageText": [
+      "PDF Key fixture sjis page 1 of 4\ntoken 801c606aee6abeac",
+      "PDF Key fixture sjis page 2 of 4\ntoken f6ccbaee34b13631",
+      "PDF Key fixture sjis page 3 of 4\ntoken c553036d22ce2786",
+      "PDF Key fixture sjis page 4 of 4\ntoken 86a5985483d00eb4"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "euckr-r3.pdf",
+    "description": "RC4-128, password bytes are EUC-KR-encoded Korean",
+    "kind": "ok",
+    "tags": [
+      "legacy"
+    ],
+    "userPassword": "비밀번호",
+    "ownerPassword": "비밀번호-owner",
+    "userPasswordHex": "baf1b9d0b9f8c8a3",
+    "ownerPasswordHex": "baf1b9d0b9f8c8a32d6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6900,
+    "sha256": "f7299093e801865f9d12d68f9a072f9863a729dcfc7ba34419944711019bfdcd",
+    "pdfVersion": "1.4",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "8416f8527634b448b405428169be51a0c5fa3fab3c0e2c5adf0514e1bcdc0fa2",
+      "5a861ff90500fc3fcd4634c0896208698dfdfc8d5156c31780c2d01f2ecce6d2",
+      "4520344f0074794939ffc7501bbb598b1201f61975a41239fa6c0f32156b2eec",
+      "2e89cadaf302c3008c9cdc4822cbb4ba4644e80277374ed4f0901c8197259ad8"
+    ],
+    "pageText": [
+      "PDF Key fixture euckr page 1 of 4\ntoken 736a76fdbd148acf",
+      "PDF Key fixture euckr page 2 of 4\ntoken bc6b98db86d25e1b",
+      "PDF Key fixture euckr page 3 of 4\ntoken 306b0e16533d9bf8",
+      "PDF Key fixture euckr page 4 of 4\ntoken 5979c3a3b75d260f"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "cp1251-r3.pdf",
+    "description": "RC4-128, password bytes are Windows-1251-encoded Russian",
+    "kind": "ok",
+    "tags": [
+      "legacy"
+    ],
+    "userPassword": "пароль",
+    "ownerPassword": "пароль-owner",
+    "userPasswordHex": "efe0f0eeebfc",
+    "ownerPasswordHex": "efe0f0eeebfc2d6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 6896,
+    "sha256": "5bb3ca0c8a0131d5c739cb3b7d39337ca023e95970288233d55424630085747d",
+    "pdfVersion": "1.4",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "rc4",
+      "keyBits": 128,
+      "revision": 3,
+      "version": 2,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "rc4",
+      "stringMethod": "rc4",
+      "fileMethod": "rc4",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "53fced4474c381a661f4cabe1d8c5feed256c5f679820586cac8b1a3df92b6e4",
+      "350e058e57f7e1f67528c757b8b72ebdfa07f7789271cc93e8aacf63aca873f2",
+      "101deef57f91e8aab98ef643fb84a0806f7ace6a52f2b0ed6a964208bf7b8e58",
+      "be1077faa6e5d24222487680e019b2ea20a64fd74c9a28f9cc55f342e4602064"
+    ],
+    "pageText": [
+      "PDF Key fixture cp1251 page 1 of 4\ntoken b9e96f08bf537918",
+      "PDF Key fixture cp1251 page 2 of 4\ntoken 17966a2aa1a395ec",
+      "PDF Key fixture cp1251 page 3 of 4\ntoken 2f33d61473c833c0",
+      "PDF Key fixture cp1251 page 4 of 4\ntoken dd99ca59ce55ec2f"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "long-password-r4.pdf",
+    "description": "AES-128, password longer than the 32 significant bytes",
+    "kind": "ok",
+    "tags": [
+      "long"
+    ],
+    "userPassword": "0123456789abcdefghijklmnopqrstuvwxyz-long",
+    "ownerPassword": "owner",
+    "userPasswordHex": "303132333435363738396162636465666768696a6b6c6d6e6f707172737475767778797a2d6c6f6e67",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7207,
+    "sha256": "3af08db087fb9fcb7a3e1033789bd2f7efd18235e42bfd9b722a65c1d374ff7d",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -1028,
+      "permissions": {
+        "print": "full",
+        "modify": true,
+        "extract": true,
+        "annotate": true,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "80abd055bcc67646c6de5ae2a7c258593724260680e49e4dfdfd0784ee709765",
+      "3cbb226259813fa369c47c250b9e97a1cad43b343202d0f2fd6d2fa70d2735a0",
+      "bc4c98df4eadb4a229ac309a29d8c21e203f87c05a655ee75f6c83a4e7b1584c",
+      "c3741e16705fc6df65c2bc22a6399a24f436855719cc51051b7ded3418f51217"
+    ],
+    "pageText": [
+      "PDF Key fixture long-r4 page 1 of 4\ntoken d7d286a003e0962d",
+      "PDF Key fixture long-r4 page 2 of 4\ntoken 742317914a0b7102",
+      "PDF Key fixture long-r4 page 3 of 4\ntoken 9db230b675043b47",
+      "PDF Key fixture long-r4 page 4 of 4\ntoken 6ff77fde23c79b6d"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "crlf-plain.pdf",
+    "description": "Unencrypted, hand-written with CRLF line endings",
+    "kind": "ok",
+    "tags": [
+      "plain",
+      "eol"
+    ],
+    "userPassword": null,
+    "ownerPassword": null,
+    "userPasswordHex": null,
+    "ownerPasswordHex": null,
+    "wrongPassword": "not-the-password",
+    "size": 1185,
+    "sha256": "7fa4e06bd290e97cc4570b8ad8579a6c04de41679b8d44fbd94b115f39b6336f",
+    "pdfVersion": "1.4",
+    "encrypted": false,
+    "opensWithoutPassword": true,
+    "encryption": null,
+    "pageCount": 3,
+    "linearized": false,
+    "pageContentSha256": [
+      "8a40cf42e41cb286a02fe70b3aebdbe35067ee898e16e0848d2f6a34b9ab1ae9",
+      "26732120708de43b1d288cb36c4152a3258038d1c01beaa2df12549d45941a7b",
+      "90f257bfb177644d38de8bc1c879a47e1686f20cd2a3a566e380e0497b48a272"
+    ],
+    "pageText": [
+      "crlf page 1 of 3",
+      "crlf page 2 of 3",
+      "crlf page 3 of 3"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "cr-plain.pdf",
+    "description": "Unencrypted, hand-written with CR line endings",
+    "kind": "ok",
+    "tags": [
+      "plain",
+      "eol"
+    ],
+    "userPassword": null,
+    "ownerPassword": null,
+    "userPasswordHex": null,
+    "ownerPasswordHex": null,
+    "wrongPassword": "not-the-password",
+    "size": 1134,
+    "sha256": "8f4d9702482f7818be3f49b9619667c0c3ce05ae7be705ebf0b8f1cb9405d290",
+    "pdfVersion": "1.4",
+    "encrypted": false,
+    "opensWithoutPassword": true,
+    "encryption": null,
+    "pageCount": 3,
+    "linearized": false,
+    "pageContentSha256": [
+      "483d5a54debc70f3851dd671ed9bfe699265021b1756c719d19f10ef3c16f9ca",
+      "186d59ed003a8937f5452c5911fabcb72d26e7382e69ee7b9aa52eec3495630a",
+      "2f2e84aef9cbc1194955fc1d606013f80adb665533cf6b6c0f01520e79e88470"
+    ],
+    "pageText": [
+      "cr page 1 of 3",
+      "cr page 2 of 3",
+      "cr page 3 of 3"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": false
+  },
+  {
+    "file": "damaged-recoverable.pdf",
+    "description": "Unencrypted with a wrong startxref offset (qpdf rebuilds the table)",
+    "kind": "ok",
+    "tags": [
+      "plain",
+      "damaged"
+    ],
+    "userPassword": null,
+    "ownerPassword": null,
+    "userPasswordHex": null,
+    "ownerPasswordHex": null,
+    "wrongPassword": "not-the-password",
+    "size": 12096,
+    "sha256": "fb8a5f9e5c273e55a5b091c0c4f9241551e4fb62da42ab7e2867729fbf64d9e4",
+    "pdfVersion": "1.3",
+    "encrypted": false,
+    "opensWithoutPassword": true,
+    "encryption": null,
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "c6aa68031f1669930be807806356b352acf11257c0b65a595c4789a87f96fa59",
+      "374da9dfaee37f11dc4d7b2f54868f74fb8cd51e22646e218dc8e70470107f2b",
+      "f40e72b968b0630bb6f29d61eac768f17f9f4603b373d41aa731ad82c5ba6b82",
+      "435815ea3957aeb4361814da20bd5aace533b7fa77777683e26d1ad9fddc971a"
+    ],
+    "pageText": [
+      "PDF Key fixture plain page 1 of 4\ntoken 41aa01977cc7c80d",
+      "PDF Key fixture plain page 2 of 4\ntoken b1c072fe665c57ec",
+      "PDF Key fixture plain page 3 of 4\ntoken de007291c8360737",
+      "PDF Key fixture plain page 4 of 4\ntoken c621928a72f52bbd"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": true
+  },
+  {
+    "file": "damaged-recoverable-r4.pdf",
+    "description": "AES-128 with a wrong startxref offset",
+    "kind": "ok",
+    "tags": [
+      "damaged"
+    ],
+    "userPassword": "user",
+    "ownerPassword": "owner",
+    "userPasswordHex": "75736572",
+    "ownerPasswordHex": "6f776e6572",
+    "wrongPassword": "not-the-password",
+    "size": 7587,
+    "sha256": "9a0ad7a329b656c5261b791251e34cc7a65a87511c89100b9877735c583d80f7",
+    "pdfVersion": "1.6",
+    "encrypted": true,
+    "opensWithoutPassword": false,
+    "encryption": {
+      "algorithm": "aes-128",
+      "keyBits": 128,
+      "revision": 4,
+      "version": 4,
+      "rawPermissions": -3132,
+      "permissions": {
+        "print": "low",
+        "modify": false,
+        "extract": false,
+        "annotate": false,
+        "fillForms": true,
+        "assemble": false,
+        "accessibility": true
+      },
+      "streamMethod": "aesv2",
+      "stringMethod": "aesv2",
+      "fileMethod": "aesv2",
+      "encryptMetadata": true
+    },
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "36904ceaf8221b8752c359c397bfad054b28b7ae4d7261251bf47da2debf97e3",
+      "a7ce97b0051e4000309575360f4f01b9d9a6dc5f5f80d8cf24aa44f4df3479d9",
+      "b7f9a8f806f24108ae0c47e90b835adccbf742957a429bb161dba9666a0aa722",
+      "7bffc9cce7050118db571e4b571614c588c26dbf975a3c1ad7cba8d0c3a132ce"
+    ],
+    "pageText": [
+      "PDF Key fixture aes-128 page 1 of 4\ntoken 25c1b0c3bd61fdf2",
+      "PDF Key fixture aes-128 page 2 of 4\ntoken e8e5b278328d2aa1",
+      "PDF Key fixture aes-128 page 3 of 4\ntoken fd9542f781d1fad4",
+      "PDF Key fixture aes-128 page 4 of 4\ntoken 65acd60771b86015"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": true
+  },
+  {
+    "file": "truncated-plain.pdf",
+    "description": "Unencrypted, cut off before the trailer (qpdf rebuilds table and trailer)",
+    "kind": "ok",
+    "tags": [
+      "plain",
+      "damaged"
+    ],
+    "userPassword": null,
+    "ownerPassword": null,
+    "userPasswordHex": null,
+    "ownerPasswordHex": null,
+    "wrongPassword": "not-the-password",
+    "size": 11737,
+    "sha256": "76cef64da0038e277253eb85c33f5c3689c01f389889486c75346efd6ec3b488",
+    "pdfVersion": "1.3",
+    "encrypted": false,
+    "opensWithoutPassword": true,
+    "encryption": null,
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "c6aa68031f1669930be807806356b352acf11257c0b65a595c4789a87f96fa59",
+      "374da9dfaee37f11dc4d7b2f54868f74fb8cd51e22646e218dc8e70470107f2b",
+      "f40e72b968b0630bb6f29d61eac768f17f9f4603b373d41aa731ad82c5ba6b82",
+      "435815ea3957aeb4361814da20bd5aace533b7fa77777683e26d1ad9fddc971a"
+    ],
+    "pageText": [
+      "PDF Key fixture plain page 1 of 4\ntoken 41aa01977cc7c80d",
+      "PDF Key fixture plain page 2 of 4\ntoken b1c072fe665c57ec",
+      "PDF Key fixture plain page 3 of 4\ntoken de007291c8360737",
+      "PDF Key fixture plain page 4 of 4\ntoken c621928a72f52bbd"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": true
+  },
+  {
+    "file": "damaged-unrecoverable.pdf",
+    "description": "A PDF cut off after 700 bytes: nothing to recover",
+    "kind": "error",
+    "error": "damaged",
+    "password": "",
+    "size": 700,
+    "sha256": "819ffe6a5539fdafa11b953e4fd52f899f35a58fc5cc7da2586309f6124ef4fa"
+  },
+  {
+    "file": "truncated-r6.pdf",
+    "description": "AES-256 (R6), cut off at 90 %: no trailer left",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 7101,
+    "sha256": "5e351d88889279811993a5137437a2dda0d7aac2441cea31e1f5692cf20ec617"
+  },
+  {
+    "file": "truncated-r3.pdf",
+    "description": "RC4-128 (R3), cut off at 90 %: no trailer left",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 6213,
+    "sha256": "956e218f3b0687aa02197626902ea61f080e6e66843df3474c35e98279dd4e02"
+  },
+  {
+    "file": "truncated-early-r4.pdf",
+    "description": "AES-128 (R4), cut off at 50 %: no trailer, no encryption dictionary",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 3795,
+    "sha256": "a97ce453a5ecd6e1d714d128e93cbba09cecde86ccbe4f423e5aa94efd7f9050"
+  },
+  {
+    "file": "truncated-lzw-r2.pdf",
+    "description": "RC4-40 (R2), LZW streams only, cut off before the encryption dictionary",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 964,
+    "sha256": "4196856b7c790dd173ae4035d2ca502d7b98afb75681eff96fe1be220a3d50d6"
+  },
+  {
+    "file": "truncated-scan-r3.pdf",
+    "description": "RC4-128 (R3), a scanned page (CCITT image, 36 bytes of content without a filter), cut off before the encryption dictionary",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 574,
+    "sha256": "b04324c1db2de3fa30f5a41b46f4fcf0953d0878b85f232043271178bac0b012"
+  },
+  {
+    "file": "not-a-pdf.bin",
+    "description": "Not a PDF at all",
+    "kind": "error",
+    "error": "not-pdf",
+    "password": "",
+    "size": 3008,
+    "sha256": "5c4ac5f3194cca2fee3b33f28a58e227e52a4a76464750ebfca9291673f1e557"
+  },
+  {
+    "file": "text-not-pdf.bin",
+    "description": "A text file",
+    "kind": "error",
+    "error": "not-pdf",
+    "password": "",
+    "size": 1700,
+    "sha256": "b57ade2d0f0b30ddaab82f248a029c7f70c11b2f4d7230cb99bac547ed4fc5a3"
+  },
+  {
+    "file": "nonstandard-handler.pdf",
+    "description": "Certificate (public-key) security handler",
+    "kind": "error",
+    "error": "unsupported-encryption",
+    "password": "anything",
+    "size": 1108,
+    "sha256": "2d3687d85913feb5ab9dc27fe5825e75f8d030123bc095dcfddcb74a86b6351b"
+  },
+  {
+    "file": "unsupported-revision.pdf",
+    "description": "Standard handler with an unknown revision (R7/V6)",
+    "kind": "error",
+    "error": "unsupported-encryption",
+    "password": "anything",
+    "size": 1256,
+    "sha256": "a51ea7cb5a79590b0d7693da272c4ebdc06348a9c2fc9d04e0c64cfc2a84ed9a"
+  }
+]
