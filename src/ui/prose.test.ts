@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { en } from '../i18n/en';
 import type { MessageValue } from '../i18n/types';
 import { zhCN } from '../i18n/zh-CN';
-import { splitKept, splitLongTail, splitTail } from './prose';
+import { splitKept, splitLongTail, splitTail, splitTerms } from './prose';
 
 /** Every text of a catalogue: a message with plural forms contributes each of them. */
 function texts(catalogue: Record<string, MessageValue>): string[] {
@@ -114,7 +114,51 @@ describe('splitKept: how the pieces are set', () => {
     for (const text of [...texts(zhCN), ...texts(en)]) {
       const { free, clause, end } = splitKept(text);
       expect(free + clause + end).toBe(text);
+      expect(splitTerms(text).join('')).toBe(text);
     }
+  });
+
+  it('sets a clause without last words of its own as one piece, brackets and all', () => {
+    // A line could break after the closing bracket: "……（AGPL-3.0） / 发布。"
+    expect(splitKept(zhCN['about.licenses.app'])).toMatchObject({
+      clause: '（AGPL-3.0）发布。',
+      end: '',
+      tight: 'clause',
+    });
+  });
+});
+
+describe('splitTerms: what a line must not take apart', () => {
+  it('finds the terms with a hyphen or a slash in them', () => {
+    // Every second part is a term.
+    expect(splitTerms('建议用\u00a0AES-256\u00a0')).toEqual(['建议用\u00a0', 'AES-256', '\u00a0']);
+    expect(splitTerms('（AGPL-3.0）发布。')).toEqual(['（', 'AGPL-3.0', '）发布。']);
+    expect(splitTerms('AES-128 或 RC4-40，见 a/b.pdf')).toEqual([
+      '',
+      'AES-128',
+      ' 或 ',
+      'RC4-40',
+      '，见 ',
+      'a/b.pdf',
+      '',
+    ]);
+  });
+
+  it('leaves other text alone', () => {
+    expect(splitTerms('最多 32 个字符')).toEqual(['最多 32 个字符']);
+    expect(splitTerms('3.0 版 - 说明')).toEqual(['3.0 版 - 说明']);
+    expect(splitTerms('')).toEqual(['']);
+  });
+
+  it('does not keep together what no column could hold', () => {
+    const name = `${'report-'.repeat(8)}final.pdf`;
+    expect(splitTerms(`已保存 ${name}`)).toEqual([`已保存 ${name}`]);
+  });
+
+  it('is at work in the clauses that are not set without line breaks as a whole', () => {
+    const { clause, tight } = splitKept(zhCN['details.outdated']);
+    expect(tight).toBe('end');
+    expect(splitTerms(clause)).toContain('AES-256');
   });
 });
 

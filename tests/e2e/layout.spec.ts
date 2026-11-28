@@ -278,9 +278,31 @@ function stubLines(page: Page): Promise<string[]> {
       const stub = /[\u3400-\u9fff]/.test(last)
         ? letters.length < 4
         : last.split(/\s+/).length < 2 && letters.length < 12;
-      if (stub) {
-        const whole = lines.map((line) => line.text.trim()).join(' / ');
-        problems.push(`the last line of "${whole}" is a stub`);
+      const whole = lines.map((line) => line.text.trim()).join(' / ');
+      if (stub) problems.push(`the last line of "${whole}" is a stub`);
+      // "AES- / 256": the kept piece broke inside a term instead of in front of itself.
+      for (const piece of block.querySelectorAll('.keep')) {
+        const set: { char: string; row: number }[] = [];
+        const inside = document.createTreeWalker(piece, NodeFilter.SHOW_TEXT);
+        for (let node = inside.nextNode(); node; node = inside.nextNode()) {
+          const text = node.nodeValue ?? '';
+          for (let index = 0; index < text.length; index++) {
+            range.setStart(node, index);
+            range.setEnd(node, index + 1);
+            const box = range.getClientRects()[0];
+            if (box && box.width > 0) {
+              set.push({ char: text.charAt(index), row: (box.top + box.bottom) / 2 });
+            }
+          }
+        }
+        const split = set.some(
+          (mark, index) =>
+            mark.char === '-' &&
+            /[0-9A-Za-z]/.test(set[index - 1]?.char ?? '') &&
+            /[0-9A-Za-z]/.test(set[index + 1]?.char ?? '') &&
+            Math.abs(set[index + 1]!.row - mark.row) >= 6,
+        );
+        if (split) problems.push(`a term of "${whole}" is split at its hyphen`);
       }
     }
     return problems;
@@ -473,6 +495,43 @@ test.describe('the guards themselves', () => {
     expect(await stubLines(page)).toEqual([]);
     await set('一二三四五六七八', '九十。', false);
     expect((await stubLines(page)).join('\n')).toContain('九十。" is a stub');
+    // A term that is wider than the column and taken apart at its hyphen.
+    await set('一二三四五六，', 'ABCDEFGHIJ-1234567890', false);
+    expect((await stubLines(page)).join('\n')).toContain('is split at its hyphen');
+  });
+});
+
+// The end of a Chinese note is plain inline text (prose.tsx): what keeps it together has to
+// hold at every width, not only at those of the matrix below. These are the windows in which
+// a note of the details and one of the licences broke inside its end piece: "建议用 AES- /
+// 256 重新加密。" and "……第 3 版（AGPL-3.0） / 发布。".
+test.describe('the end of a Chinese note, in windows of any width', () => {
+  test.use({ ...PHONE, viewport: { width: 360, height: 800 }, locale: 'zh-CN' });
+
+  test('is not taken apart and leaves no stub', async ({ app, page }) => {
+    await app.open();
+    await app.addFixtures('rc4-40-r2.pdf', 'plain.pdf');
+    await app.analysed(2);
+    const widths = [280, 300, 320, 340, 360, 380, 400, 412, 480, 500, 520, 540, 600];
+
+    const details = await app.openDetails('rc4-40-r2.pdf');
+    await expect(details).toContainText(app.t('details.outdated'));
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 800 });
+      await app.settled();
+      expect(await stubLines(page), `details, ${width}px`).toEqual([]);
+    }
+    await app.closeDialog();
+
+    await page.setViewportSize({ width: 360, height: 800 });
+    const settings = await app.openSettings();
+    await settings.locator('details.licenses summary').click();
+    await expect(settings).toContainText(app.t('about.licenses.app'));
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 800 });
+      await app.settled();
+      expect(await stubLines(page), `licences, ${width}px`).toEqual([]);
+    }
   });
 });
 

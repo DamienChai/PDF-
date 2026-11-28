@@ -189,6 +189,57 @@ describe('files of the previous build', () => {
     expect(await storage.has(previousBuildsCache(SCOPE))).toBe(false);
   });
 
+  it('a failed attempt leaves what an earlier installation set aside, same files included', async () => {
+    const storage = memoryCacheStorage();
+    await precacheOf(storage, V1);
+    // Version 2 installs and waits: the precache then holds the files of both.
+    expect(await keepPreviousBuild(storage, SCOPE, PRECACHE, inV2, 1000)).toBe(3);
+    await precacheOf(storage, { 'assets/index-EEEE.js': 'app 2', 'assets/worker-FFFF.js': 'w 2' });
+    const kept = await storage.open(previousBuildsCache(SCOPE));
+    const put = kept.put.bind(kept);
+    const stored: string[] = [];
+    let room = 1;
+    kept.put = async (request, response) => {
+      if (room-- <= 0) throw new DOMException('full', 'QuotaExceededError');
+      stored.push(request instanceof Request ? request.url : String(request));
+      return put(request, response);
+    };
+    // Version 3 has none of them, and room for one copy only.
+    await expect(keepPreviousBuild(storage, SCOPE, PRECACHE, () => false, 5000)).rejects.toThrow(
+      'full',
+    );
+    // The files of version 1 were neither written again nor taken back.
+    expect(
+      stored.every((url) => /index-(EEEE|DDDD)|worker-FFFF/.test(url)),
+      stored.join(),
+    ).toBe(true);
+    expect(await keptPaths(storage)).toEqual([
+      'assets/index-AAAA.js',
+      'assets/pdfx-CCCC.wasm',
+      'assets/worker-BBBB.js',
+    ]);
+    const worker = await matchPreviousBuild(
+      storage,
+      SCOPE,
+      new Request(`${SCOPE}assets/worker-BBBB.js`),
+    );
+    expect(await worker?.text()).toBe('worker 1');
+    // They keep the day their own build was replaced.
+    expect(worker?.headers.get('X-PDFKey-Retired')).toBe('1000');
+
+    // With room, version 3 sets aside what is new, and counts only that.
+    room = Infinity;
+    expect(await keepPreviousBuild(storage, SCOPE, PRECACHE, () => false, 5000)).toBe(3);
+    expect(await keptPaths(storage)).toEqual([
+      'assets/index-AAAA.js',
+      'assets/index-DDDD.css',
+      'assets/index-EEEE.js',
+      'assets/pdfx-CCCC.wasm',
+      'assets/worker-BBBB.js',
+      'assets/worker-FFFF.js',
+    ]);
+  });
+
   it('keeps the copies of the app on one origin apart', async () => {
     const storage = memoryCacheStorage();
     const other = 'https://user.github.io/other/';

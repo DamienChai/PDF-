@@ -25,6 +25,9 @@ function followUp(report: RunReport): void {
     return;
   }
   afterRender(() => {
+    // A run takes a while, and a menu or a sheet may have been opened meanwhile: the focus is
+    // in there and stays there. When it closes, the focus returns to what opened it.
+    if (overlay.peek() !== null) return;
     const waiting = (): HTMLInputElement | null | undefined =>
       jobs.entries
         .peek()

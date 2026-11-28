@@ -9,8 +9,10 @@
  * inline block gets one in the text that assistive technology is given: the name of a control
  * would read "……的大 多数软件". There the piece stays ordinary inline text (base.css): a short
  * one is set without line breaks; a long clause does not break between its characters unless it
- * is wider than the line, and its last words do not break at all.
+ * is wider than the line, nor inside a term like "AES-256", and its last words do not break at
+ * all.
  */
+import type { ComponentChildren } from 'preact';
 import { useMemo } from 'preact/hooks';
 
 /** Chinese text is set differently from text in Latin script. */
@@ -139,23 +141,42 @@ export function splitKept(text: string): {
 } {
   const [free, tail] = splitTail(text);
   const [clause, end] = splitLongTail(tail);
-  const tight = end
-    ? widthOf(end) <= MAX_TIGHT
-      ? 'end'
-      : null
-    : clause && widthOf(clause) <= LONG_TAIL
-      ? 'clause'
-      : null;
+  // A clause that has no last words to keep (it is short, or they are all of it) is the piece.
+  const piece = end || clause;
+  const tight = piece && widthOf(piece) <= MAX_TIGHT ? (end ? 'end' : 'clause') : null;
   return { free, clause, end, tight };
 }
 
 /**
- * A Chinese clause that is not set without line breaks as a whole could still break at its
- * spaces: "2011 / 年后的……". They become no-break spaces, which is what belongs between a
- * number and its unit anyway.
+ * A term in Latin script with a hyphen or a slash inside: "AES-256", "AGPL-3.0". A line may
+ * break after those marks, which takes the term apart.
  */
-function unbreakable(piece: string, han: boolean): string {
-  return han ? piece.replaceAll(' ', '\u00a0') : piece;
+const TERM = /([0-9A-Za-z][0-9A-Za-z.+_]*(?:[-/][0-9A-Za-z.+_]+)+)/;
+
+/**
+ * The terms of a text and what stands between them, in turn: every second part is a term. One
+ * that is too long to be set without line breaks counts as text.
+ */
+export function splitTerms(text: string): string[] {
+  const parts = [''];
+  text.split(TERM).forEach((part, index) => {
+    if (index % 2 === 1 && widthOf(part) <= MAX_TIGHT) parts.push(part, '');
+    else parts[parts.length - 1] += part;
+  });
+  return parts;
+}
+
+/**
+ * A Chinese clause that is not set without line breaks as a whole could still break where
+ * `word-break: keep-all` does not reach: at its spaces ("2011 / 年后的……") and inside a term
+ * ("AES- / 256"). The spaces become no-break spaces, which is what belongs between a number and
+ * its unit anyway; a term is set without line breaks.
+ */
+function unbreakable(piece: string, han: boolean): ComponentChildren {
+  if (!han) return piece;
+  return splitTerms(piece.replaceAll(' ', '\u00a0')).map((part, index) =>
+    index % 2 === 1 ? <span class="keep__term">{part}</span> : part,
+  );
 }
 
 export function Prose({ text }: { text: string }) {

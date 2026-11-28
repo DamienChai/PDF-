@@ -383,6 +383,55 @@ test.describe('unlock several files', () => {
     await app.expectState(first.file, 'done');
   });
 
+  test('a run that ends while a file menu is open leaves the focus in the menu', async ({
+    app,
+    page,
+  }) => {
+    // A large file, so that the menu is open before its run has ended.
+    test.setTimeout(90_000);
+    const second = fixture('aes-256-r6.pdf');
+    const third = fixture('latin1-r4.pdf');
+    await app.open();
+    await app.addFiles([LARGE_PDF.path, fixturePath(second.file), fixturePath(third.file)]);
+    await app.analysed(3);
+    await app.unlockWith('opens none of them');
+    for (const name of [LARGE_PDF.name, second.file, third.file]) {
+      await app.expectState(name, 'wrong-password');
+    }
+    await app.unlockField.fill('');
+    await app.cardField(LARGE_PDF.name).fill(LARGE_PDF.password);
+    const button = app.dockButton('action.unlock');
+    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
+
+    // The main button, and in the same breath the menu of another file.
+    const anchor = (await app.card(second.file).getAttribute('data-entry'))!;
+    await button.evaluate((primary: HTMLElement, id) => {
+      primary.click();
+      document.querySelector<HTMLElement>(`[data-menu-anchor="${id}"]`)!.click();
+    }, anchor);
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    await app.expectState(LARGE_PDF.name, 'done');
+    await app.expectState(second.file, 'wrong-password');
+    // Past the moment at which the run's follow-up moves the focus.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100))),
+        ),
+    );
+    await expect(menu).toBeVisible();
+    // A popover on desktop, a sheet with the menu in it on the phone.
+    expect(
+      await page.evaluate(
+        () => document.activeElement?.closest('[role="menu"], [role="dialog"]') !== null,
+      ),
+      'the focus is inside the open menu',
+    ).toBe(true);
+    await expect(app.cardField(second.file)).not.toBeFocused();
+    await expect(app.cardField(third.file)).not.toBeFocused();
+  });
+
   test('a password that opens nothing is rejected at the shared field', async ({ app }) => {
     await app.open();
     await app.addFixtures('aes-256-r6.pdf', 'aes-128-r4.pdf');

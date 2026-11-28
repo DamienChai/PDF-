@@ -38,8 +38,9 @@ export function previousBuildsCache(scope: string): string {
  * while the new version installs: the precache is then still that of the running version; and
  * call it when the files of the new version are stored, so that on a device that is nearly full
  * the room goes to them. `inNewBuild` says whether the new build has a file at an address.
- * Returns the number of files kept. If a copy cannot be stored, the copies of this call are
- * taken back and the error is passed on: half a build is of no use, and the room is.
+ * Returns the number of files this call set aside. If a copy cannot be stored, the copies of
+ * this call are taken back and the error is passed on: half a build is of no use, and the room
+ * is. What earlier calls set aside stays.
  */
 export async function keepPreviousBuild(
   storage: CacheStorage,
@@ -62,6 +63,10 @@ export async function keepPreviousBuild(
   const copied: Request[] = [];
   try {
     for (const request of superseded) {
+      // Set aside by an earlier installation, which waited when this one arrived: the same
+      // file (its name carries a hash of its content). It is not copied again, and so not
+      // taken back with the copies of this call either: a window may still run its build.
+      if (await kept.match(request)) continue;
       const response = await precache.match(request);
       if (!response) continue;
       const headers = new Headers(response.headers);
