@@ -248,6 +248,76 @@ test.describe('unlock several files', () => {
     await expect(app.dock).toContainText(app.t('status.unlocked', { count: 2 }));
   });
 
+  test('a retry on one card leaves the cursor in the field the user has gone on to', async ({
+    app,
+    page,
+  }) => {
+    // A large file, so that the user has time to go on while its retry runs.
+    test.setTimeout(90_000);
+    const small = fixture('aes-256-r6.pdf');
+    await app.open();
+    await app.addFiles([LARGE_PDF.path, fixturePath(small.file)]);
+    await app.analysed(2);
+    await app.unlockWith('opens neither');
+    await app.expectState(LARGE_PDF.name, 'wrong-password');
+    await app.expectState(small.file, 'wrong-password');
+    await expect(app.unlockField).toHaveValue('opens neither');
+
+    /** Starts the retry of the large file and, in the same breath, goes on to the other card. */
+    const retryAndMoveOn = async (password: string): Promise<void> => {
+      await app.cardField(LARGE_PDF.name).fill(password);
+      const [from, to] = await Promise.all(
+        [LARGE_PDF.name, small.file].map((name) => app.card(name).getAttribute('data-entry')),
+      );
+      await page.evaluate(
+        ([retried, other]) => {
+          const field = (id: string | null | undefined) =>
+            document.querySelector<HTMLInputElement>(
+              `[data-entry="${id}"] [data-inline-password]`,
+            )!;
+          field(retried)
+            .closest('.inline-form')!
+            .querySelector<HTMLButtonElement>('button.btn')!
+            .click();
+          field(other).focus();
+        },
+        [from, to],
+      );
+    };
+    const settle = (): Promise<void> =>
+      page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 50))),
+          ),
+      );
+
+    // Rejected: the retried card shows it, and the cursor stays where the user is.
+    await retryAndMoveOn('still wrong');
+    await expect(app.cardField(LARGE_PDF.name)).toHaveAttribute('aria-invalid', 'true');
+    await settle();
+    await expect(app.cardField(small.file)).toBeFocused();
+    // The cards have taken over: the shared password that opened nothing is gone, and with it
+    // the message about it.
+    await expect(app.unlockField).toHaveValue('');
+    await expect(app.dock).not.toContainText(app.t('unlock.password.wrong'));
+
+    // Accepted, after a moment in which the user types on.
+    await retryAndMoveOn(LARGE_PDF.password);
+    await page.keyboard.type(small.userPassword!.slice(0, 2));
+    await app.expectState(LARGE_PDF.name, 'done');
+    await settle();
+    await page.keyboard.type(small.userPassword!.slice(2));
+    await expect(app.cardField(small.file)).toBeFocused();
+    await expect(app.cardField(small.file)).toHaveValue(small.userPassword!);
+    await expect(app.unlockField).toHaveValue('');
+
+    // One file left, with the password on its card: the main button tries just that.
+    await app.press(app.dockButton('action.unlock'));
+    await app.expectState(small.file, 'done');
+    await expect(app.dock).toContainText(app.t('status.unlocked', { count: 2 }));
+  });
+
   test('a password that opens nothing is rejected at the shared field', async ({ app }) => {
     await app.open();
     await app.addFixtures('aes-256-r6.pdf', 'aes-128-r4.pdf');

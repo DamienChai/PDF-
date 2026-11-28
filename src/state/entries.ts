@@ -150,7 +150,8 @@ export interface AlgorithmChipView {
 
 export interface PasswordFieldView {
   /**
-   * `retry`: unlock mode, a field with its own submit button; call `retryUnlock(id, password)`.
+   * `retry`: unlock mode, bound to `entry.retryPassword` / `setRetryPassword(id, value)`, with
+   * its own submit button: `retryUnlock(id)`.
    * `current`: lock mode, bound to `entry.currentPassword` / `setCurrentPassword(id, value)`.
    */
   kind: 'retry' | 'current';
@@ -171,6 +172,12 @@ export interface ResultView {
   saved: boolean;
   /** Offer "Share": the platform can share PDF files. */
   canShare: boolean;
+  /**
+   * Lock mode: the result was made with other settings than the form holds. The next run makes
+   * it again; until then it is not handed out (no save, share or open): the password on screen
+   * would not open it.
+   */
+  withheld: boolean;
 }
 
 export interface ErrorView {
@@ -214,6 +221,12 @@ export interface ViewContext {
   mode: Mode;
   /** Unlock mode: number of files that still need a password (never tried or rejected). */
   lockedCount: number;
+  /**
+   * Lock mode, while results are about to be made again: the number of the settings the form
+   * holds (-1: nothing was made with them). Results made with other settings are withheld (see
+   * `ResultView.withheld`). null: every result is on offer.
+   */
+  lockTarget: number | null;
   canShare: boolean;
 }
 
@@ -334,7 +347,8 @@ function algorithmChipFor(
   };
 }
 
-function resultView(result: EntryResult, canShare: boolean): ResultView {
+function resultView(result: EntryResult, context: ViewContext): ResultView {
+  const { canShare } = context;
   return {
     name: result.name,
     size: result.size,
@@ -344,6 +358,10 @@ function resultView(result: EntryResult, canShare: boolean): ResultView {
     verified: result.verified,
     saved: result.saved,
     canShare,
+    withheld:
+      context.mode === 'lock' &&
+      context.lockTarget !== null &&
+      result.settings !== context.lockTarget,
   };
 }
 
@@ -377,7 +395,7 @@ export function deriveEntryView(
         : null,
     password: passwordFieldFor(state, inspection, run, context),
     queued,
-    result: state === 'done' && run.result ? resultView(run.result, context.canShare) : null,
+    result: state === 'done' && run.result ? resultView(run.result, context) : null,
     error: error ? errorView(error) : null,
     canCancel: state === 'processing',
     canRetry: error !== null && (run.error !== null || !PERMANENT_FAILURES.has(error.code)),
@@ -453,7 +471,7 @@ export function deriveDetails(
   run: Run,
   context: ViewContext,
 ): DetailsView {
-  const result = run.result ? resultView(run.result, context.canShare) : null;
+  const result = run.result ? resultView(run.result, context) : null;
   const failure = run.error ?? (inspection.status === 'failed' ? inspection.error : null);
   const error = failure ? errorView(failure) : null;
   if (inspection.status !== 'ready') {
@@ -536,8 +554,10 @@ export interface Summary {
   /** Files the primary action would process. */
   actionable: number;
   /**
-   * Lock: finished files among them. They were locked with other settings than the ones about
-   * to be submitted and are locked again, so that one password opens every result.
+   * Lock: finished files that are locked again by the next run, because they were made with
+   * other settings than the form holds: one password opens every result. Counted while the form
+   * is in play, i.e. while something else is waiting to be locked, read or processed, or the
+   * results in the list differ among themselves.
    */
   relock: number;
   /**
@@ -588,7 +608,7 @@ export interface SummaryItem {
 
 export interface SummaryContext {
   mode: Mode;
-  /** Unlock: the shared password field is not empty. */
+  /** Unlock: there is a password to try, in the shared field or in a card's own. */
   hasUnlockPassword: boolean;
   unlockRejected: boolean;
   capabilities: SaveCapabilities;
@@ -615,6 +635,8 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
   let lockReady = 0;
   let lockWaiting = 0;
   let outdated = 0;
+  /** Lock: the settings the finished files were made with, by number. */
+  const madeWith = new Set<number | null>();
   let rejected = 0;
   let unsaved = 0;
   let totalSize = 0;
@@ -633,7 +655,10 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
           totalSize += item.run.result.size;
           if (!item.run.result.saved) unsaved++;
         }
-        if (mode === 'lock' && item.outdated) outdated++;
+        if (mode === 'lock') {
+          if (item.outdated) outdated++;
+          if (item.run.result) madeWith.add(item.run.result.settings);
+        }
         break;
       case 'error':
         failed++;
@@ -664,9 +689,12 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
   }
 
   const total = items.length;
-  // Finished files are only locked again along with something that is still to be locked:
+  // Results made with different settings cannot stay side by side: one of the groups is always
+  // locked again. Otherwise finished files are only locked again along with something else:
   // while everything is finished there is no form to submit other settings with.
-  const relock = lockReady + lockWaiting > 0 ? outdated : 0;
+  const mixed = madeWith.size > 1;
+  const formInPlay = mixed || lockReady + lockWaiting + analysing + processing > 0;
+  const relock = formInPlay ? outdated : 0;
   const lockable = lockReady + relock;
   const actionable = mode === 'unlock' ? locked + restricted : lockable;
   const needPassword = mode === 'unlock' ? locked : lockWaiting;
@@ -688,7 +716,7 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
             count: actionable,
             enabled: !busy,
           };
-  } else if (mode === 'lock' && lockReady + lockWaiting > 0) {
+  } else if (mode === 'lock' && (lockReady + lockWaiting > 0 || (mixed && relock > 0))) {
     primary = {
       kind: 'lock',
       label: countLabel(lockable, 'action.lock'),

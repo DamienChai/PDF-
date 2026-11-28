@@ -31,7 +31,10 @@ Small PDFs for `src/engine/*.test.ts`, described by `manifest.json`.
 - Cut off before the trailer: unencrypted at 97 % (`truncated-plain.pdf`, repaired); AES-256 R6
   at 90 % (half of the encryption dictionary left), RC4-128 at 90 % and AES-128 at 50 % (no
   encryption dictionary left either): `truncated-r6.pdf`, `truncated-r3.pdf`,
-  `truncated-early-r4.pdf` must be refused as `damaged`, never taken for unencrypted files.
+  `truncated-early-r4.pdf` must be refused as `damaged`, never taken for unencrypted files. The
+  same for `truncated-lzw-r2.pdf`: RC4-40, hand-written with LZW streams only (as scanners wrote
+  them in the 1990s), cut off behind the last stream, so that no stream has a zlib header to
+  miss.
 - Not PDFs: binary and text.
 - Unsupported: certificate security handler (`/Adobe.PubSec`), unknown revision (R7/V6).
 

@@ -17,3 +17,10 @@ export const SUBPATH_URL = `http://127.0.0.1:${SUBPATH_PORT}${SUBPATH}`;
  * differs from the built one by a trailing comment: to that browser, a new version of the app.
  */
 export const SW_VERSION_COOKIE = 'e2e-sw-version';
+
+/**
+ * A browser that sends this cookie to the sub-path server gets a release that renamed every
+ * hashed file of the build (the engine's worker and WebAssembly module among them); the names
+ * of the build before it are gone from the server.
+ */
+export const BUILD_COOKIE = 'e2e-build';

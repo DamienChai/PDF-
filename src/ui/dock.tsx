@@ -112,21 +112,22 @@ export function Dock() {
 
   useLayoutEffect(() => (bar.current ? publishDockHeight(bar.current) : undefined), []);
 
-  // A file that needs a password has arrived (or the password was wrong): the cursor goes to the
-  // field. Never while a sheet is open, never away from another field the user is typing in,
-  // and not because the mode was switched: then the focus is on the switch and stays there.
-  const wanted = kind === 'password' ? summary.needPassword : 0;
-  const rejected = summary.passwordError !== null && !processing;
+  // A file that needs a password has arrived, or the shared password was just rejected: the
+  // cursor goes to the field. Files whose own password was rejected on their card do not count:
+  // those retries belong to the cards. Never while a sheet is open, never away from another
+  // field the user is in, and not because the mode was switched: then the focus is on the
+  // switch and stays there.
+  const wanted = kind === 'password' ? summary.needPassword - summary.rejected : 0;
+  const rejected = summary.passwordError !== null;
   const previous = useRef({ wanted: 0, rejected: false, mode: currentMode });
   useEffect(() => {
     const before = previous.current;
     previous.current = { wanted, rejected, mode: currentMode };
     const arrived = wanted > before.wanted && before.mode === currentMode;
-    const failed = rejected && !before.rejected;
+    const failed = rejected && !before.rejected && before.mode === currentMode;
     if ((!arrived && !failed) || overlay.peek() !== null) return;
     const active = document.activeElement;
-    const typing = active instanceof HTMLInputElement && active.id !== UNLOCK_FIELD_ID;
-    if (typing && !failed) return;
+    if (active instanceof HTMLInputElement && active.id !== UNLOCK_FIELD_ID) return;
     focusQuietly(unlockField(), failed);
   }, [wanted, rejected, currentMode]);
 

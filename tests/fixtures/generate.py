@@ -276,6 +276,69 @@ def cut_off(source: str, target: str, keep: float) -> None:
     (HERE / target).write_bytes(data[: int(len(data) * keep)])
 
 
+def lzw_literal(data: bytes) -> bytes:
+    """Encodes `data` for /LZWDecode without compressing it: every byte is a nine-bit code, and
+    the table is cleared often enough that the codes never get longer."""
+    codes: list[int] = []
+    for index, byte in enumerate(data):
+        if index % 200 == 0:
+            codes.append(256)
+        codes.append(byte)
+    codes.append(257)
+    bits = "".join(format(code, "09b") for code in codes)
+    bits += "0" * (-len(bits) % 8)
+    return int(bits, 2).to_bytes(len(bits) // 8, "big")
+
+
+def lzw_objects() -> list[bytes]:
+    """One page whose content stream and image are LZW-encoded, as scanners wrote them in the 1990s."""
+
+    def stream(dictionary: bytes, data: bytes) -> bytes:
+        encoded = lzw_literal(data)
+        return (
+            b"<< %s /Filter /LZWDecode /Length %d >>\nstream\n" % (dictionary, len(encoded))
+            + encoded
+            + b"\nendstream"
+        )
+
+    content = b"q 120 0 0 120 90 40 cm /Im1 Do Q BT /F1 14 Tf 20 20 Td (Scanned in 1997) Tj ET"
+    image = bytes((x * 16 + y * 8) % 256 for y in range(16) for x in range(16))
+    return [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Count 1 /Kids [ 4 0 R ] >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 5 0 R "
+        b"/Resources << /Font << /F1 3 0 R >> /XObject << /Im1 6 0 R >> >> >>",
+        stream(b"", content),
+        stream(
+            b"/Type /XObject /Subtype /Image /Width 16 /Height 16 /ColorSpace /DeviceGray "
+            b"/BitsPerComponent 8",
+            image,
+        ),
+    ]
+
+
+def lzw_cut_off(target: str) -> None:
+    """An encrypted file with nothing but LZW streams, cut off behind the last of them: neither
+    the trailer nor the encryption dictionary is left, and no stream has a zlib header to miss."""
+    source = pikepdf.open(io.BytesIO(raw_pdf(lzw_objects())))
+    assert b"Scanned in 1997" in source.pages[0].Contents.read_bytes()
+    encrypted = io.BytesIO()
+    source.save(
+        encrypted,
+        encryption=Encryption(owner="owner", user="user", R=2, aes=False, metadata=False, allow=ALL),
+        compress_streams=False,
+        static_id=True,
+    )
+    data = encrypted.getvalue()
+    assert data.count(b"/LZWDecode") == 2 and b"/FlateDecode" not in data
+    dictionary = data.index(b"/Filter /Standard")
+    cut = data[: data.rindex(b" 0 obj", 0, dictionary)]
+    cut = cut[: cut.rindex(b"\n") + 1]
+    assert cut.count(b"endstream") == 2 and b"/Encrypt" not in cut and b"/Standard" not in cut
+    (HERE / target).write_bytes(cut)
+
+
 def check_bytes_open(name: str, password: bytes, expected: int) -> None:
     """Independent check (pypdf) that `password` opens the file as user (1) or owner (2)."""
     result = pypdf.PdfReader(HERE / name).decrypt(password)
@@ -655,6 +718,9 @@ def main() -> None:
     record_error("truncated-r3.pdf", "RC4-128 (R3), cut off at 90 %: no trailer left", "damaged", password="user")
     cut_off("aes-128-r4.pdf", "truncated-early-r4.pdf", 0.5)
     record_error("truncated-early-r4.pdf", "AES-128 (R4), cut off at 50 %: no trailer, no encryption dictionary",
+                 "damaged", password="user")
+    lzw_cut_off("truncated-lzw-r2.pdf")
+    record_error("truncated-lzw-r2.pdf", "RC4-40 (R2), LZW streams only, cut off before the encryption dictionary",
                  "damaged", password="user")
 
     (HERE / "not-a-pdf.bin").write_bytes(

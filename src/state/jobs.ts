@@ -10,12 +10,21 @@
  * signals of this controller, handed to the engine and dropped once they have done their job.
  * They are never logged, stored, or put into a URL.
  *
- * A list has one set of lock settings. The settings submitted last (`lockApplied`) are kept for
- * as long as a Lock result made with them is in the list, and so is, unseen, the password that
- * opened an already protected input: when other settings are submitted, every result is made
- * again from its input, and the one password shown opens them all.
+ * A list has one set of lock settings. Submitted settings are kept for as long as a Lock result
+ * made with them is in the list, and so is, unseen, the password that opened an already
+ * protected input: when other settings are submitted, every result is made again from its input.
+ * Until that has happened, a result made with other settings than the form holds is not handed
+ * out: whatever can be saved opens with the password on screen. The result it replaces is kept
+ * aside meanwhile and comes back if the new run is cancelled or fails.
  */
-import { batch, computed, signal, type ReadonlySignal, type Signal } from '@preact/signals';
+import {
+  batch,
+  computed,
+  signal,
+  untracked,
+  type ReadonlySignal,
+  type Signal,
+} from '@preact/signals';
 import { checkNewPasswords, type NewPasswordProblem } from '../engine/passwords';
 import {
   PdfEngineError,
@@ -77,6 +86,8 @@ export interface Entry {
   readonly progress: ReadonlySignal<number>;
   /** Lock mode: content of the card's "current password" field. */
   readonly currentPassword: ReadonlySignal<string>;
+  /** Unlock mode: content of the card's own password field (see `PasswordFieldView`). */
+  readonly retryPassword: ReadonlySignal<string>;
   /** Data for the details sheet. */
   readonly details: ReadonlySignal<DetailsView>;
 }
@@ -162,7 +173,8 @@ export interface JobsController {
   readonly unlockRevealed: ReadonlySignal<boolean>;
   /**
    * The settings the Lock results in the list were made with, as they were submitted: not what
-   * the form holds now. null while the list has no Lock result.
+   * the form holds now. null while the list has no Lock result, and while its results were made
+   * with different settings (the form is shown then, and the next run makes them alike).
    */
   readonly lockApplied: ReadonlySignal<LockApplied | null>;
   /**
@@ -187,18 +199,25 @@ export interface JobsController {
   /**
    * Unlocks every file that can be unlocked: files that need a password are tried with
    * `password` (default: the shared field), files that only carry restrictions need none.
-   * Files the password does not open become `wrong-password`.
+   * Files the password does not open become `wrong-password`. Without a shared password, each
+   * card that has a field of its own is tried with what was typed there.
    */
   unlockAll(password?: string): Promise<RunReport>;
-  /** Tries one file again with its own password. */
-  retryUnlock(id: string, password: string): Promise<RunReport>;
+  /** Unlock mode: sets the content of a card's own password field. */
+  setRetryPassword(id: string, value: string): void;
+  /**
+   * Tries one file again with its own password (default: the card's field). A shared password
+   * that opened nothing is dropped then: the cards have taken over.
+   */
+  retryUnlock(id: string, password?: string): Promise<RunReport>;
 
   /** Lock mode: sets the content of a card's "current password" field. */
   setCurrentPassword(id: string, value: string): void;
   /**
    * Encrypts every file that is ready, with the lock form's settings (or `options`). Problems
    * with the new passwords are reported before anything runs. Results that were made with other
-   * settings are made again in the same run.
+   * settings are made again in the same run; each stays in the list until its replacement is
+   * finished.
    */
   lockAll(options?: EncryptOptions): Promise<RunReport>;
   /** Copies `lockApplied.password`. Call it directly from a click handler. */
@@ -207,7 +226,10 @@ export interface JobsController {
   /** The primary action of the current mode: `unlockAll()` or `lockAll()`. */
   runPrimary(): Promise<RunReport>;
 
-  /** Stops one file's processing in the current mode; it returns to where it was. */
+  /**
+   * Stops one file's processing in the current mode; it returns to where it was. In Lock mode
+   * that may be a finished result: the one the stopped run was going to replace.
+   */
   cancel(id: string): void;
   /** Stops everything that is being processed in the current mode. */
   cancelAll(): void;
@@ -218,7 +240,10 @@ export interface JobsController {
   remove(id: string): void;
   /** Empties the list and forgets every password, including the lock form's. */
   clear(): void;
-  /** Error state: inspects the file again, or makes it ready for another run. */
+  /**
+   * Error state: inspects the file again, or makes it ready for another run. A Lock result that
+   * the failed run was going to replace comes back.
+   */
   retry(id: string): void;
   /** Done: discards the result of the current mode so the file can be processed again. */
   redo(id: string): void;
@@ -245,11 +270,17 @@ interface EntryRecord extends Entry {
   readonly runs: Readonly<Record<Mode, Signal<Run>>>;
   readonly progressOf: Readonly<Record<Mode, Signal<number>>>;
   readonly password: Signal<string>;
+  readonly retry: Signal<string>;
   /**
-   * Lock: the password that opened the input for the run that is in flight or finished, ''
-   * otherwise. Never shown; it is what lets a result be made again with other settings.
+   * Lock: the password that opened the input for the run that is in flight, finished or kept
+   * aside, '' otherwise. Never shown; it is what lets a result be made again with other settings.
    */
   opened: string;
+  /**
+   * Lock: the finished run that the run in flight (or the one that failed) was started to
+   * replace. It takes its place again when that run is cancelled or retried.
+   */
+  readonly replaced: Signal<Run | null>;
   /** The controllers of what is in flight. A job whose controller was replaced is stale. */
   readonly aborts: Record<'inspect' | Mode, AbortController | null>;
 }
@@ -261,12 +292,6 @@ interface Job {
   operation: Operation;
   /** Lock: the number of the settings in `operation`. */
   settings: number | null;
-}
-
-/** Submitted lock settings and the number results refer to them by. */
-interface LockSettings {
-  revision: number;
-  options: EncryptOptions;
 }
 
 type Outcome = 'done' | 'rejected' | 'failed' | 'cancelled';
@@ -324,6 +349,17 @@ function isProcessing(run: Run): boolean {
   return run.status === 'queued' || run.status === 'running';
 }
 
+/** The number of the submitted settings equal to `options`, if there is one. */
+function revisionOf(
+  revisions: ReadonlyMap<number, EncryptOptions>,
+  options: EncryptOptions,
+): number | undefined {
+  for (const [revision, submitted] of revisions) {
+    if (sameEncryptOptions(submitted, options)) return revision;
+  }
+  return undefined;
+}
+
 function sameEncryptOptions(a: EncryptOptions, b: EncryptOptions): boolean {
   const p = a.permissions;
   const q = b.permissions;
@@ -351,8 +387,13 @@ export function createJobsController(deps: JobsDependencies): JobsController {
   const unlockRejected = signal(false);
   /** Ids of the entries of the batch that is running (or just ran) in each mode. */
   const batches: Record<Mode, Signal<readonly string[]>> = { unlock: signal([]), lock: signal([]) };
-  /** What the Lock runs in flight and the Lock results in the list were submitted with. */
-  const lockSettings = signal<LockSettings | null>(null);
+  /**
+   * Submitted lock settings by the number that results refer to them by. A set is kept for as
+   * long as a result, a run in flight or a run kept aside was made with it.
+   */
+  const lockRevisions = signal<ReadonlyMap<number, EncryptOptions>>(new Map());
+  /** The number of the settings submitted last: every Lock run in flight is made with them. */
+  const lockSubmitted = signal(0);
   let lastRevision = 0;
   const pending = new Set<Promise<unknown>>();
   let nextId = 1;
@@ -394,16 +435,23 @@ export function createJobsController(deps: JobsDependencies): JobsController {
     return count;
   });
 
-  /** Submitting the lock form now would repeat the settings the results were made with. */
-  const formRepeatsApplied = computed(() => {
-    const applied = lockSettings.value;
-    return applied !== null && sameEncryptOptions(applied.options, deps.lockForm.options.value);
-  });
+  /** The number of the submitted settings the lock form holds now; -1 if it holds others. */
+  const formRevision = computed(
+    () => revisionOf(lockRevisions.value, deps.lockForm.options.value) ?? -1,
+  );
 
+  /** The settings every Lock run in the list has in common, finished or in flight. */
   const lockApplied = computed<LockApplied | null>(() => {
-    const applied = lockSettings.value;
-    if (!applied) return null;
-    const { options } = applied;
+    let shared: number | null = null;
+    for (const entry of records.value) {
+      const run = entry.runs.lock.value;
+      const revision = isProcessing(run) ? lockSubmitted.value : (run.result?.settings ?? null);
+      if (revision === null) continue;
+      if (shared !== null && shared !== revision) return null;
+      shared = revision;
+    }
+    const options = shared === null ? undefined : lockRevisions.value.get(shared);
+    if (!options) return null;
     return {
       summary: lockSettingsSummary(options),
       passwordLabel: {
@@ -413,10 +461,18 @@ export function createJobsController(deps: JobsDependencies): JobsController {
     };
   });
 
+  /** Unlock: what is typed into the card's own field, while the card shows one. */
+  function ownPassword(entry: EntryRecord): string {
+    const run = entry.runs.unlock.value;
+    const rejected = run.status === 'idle' && run.passwordRejected;
+    return rejected && (run.ownField || lockedCount.value > 1) ? entry.retry.value : '';
+  }
+
   function viewContext(): ViewContext {
     return {
       mode: deps.mode.value,
       lockedCount: lockedCount.value,
+      lockTarget: lockTarget.value,
       canShare: getCapabilities().canShareFiles,
     };
   }
@@ -430,8 +486,7 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       const entry = list.find((candidate) => candidate.id === id);
       if (!entry || !isProcessing(entry.runs[mode].value)) finished++;
     }
-    const revision =
-      mode === 'lock' && formRepeatsApplied.value ? lockSettings.value?.revision : -1;
+    const revision = mode === 'lock' ? formRevision.value : -1;
     return summarize(
       list.map((entry) => {
         const run = entry.runs[mode].value;
@@ -444,7 +499,9 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       }),
       {
         mode,
-        hasUnlockPassword: unlockPassword.value !== '',
+        hasUnlockPassword:
+          unlockPassword.value !== '' ||
+          (mode === 'unlock' && list.some((entry) => ownPassword(entry) !== '')),
         unlockRejected: unlockRejected.value,
         capabilities: getCapabilities(),
         batch: { finished, total: ids.length },
@@ -452,13 +509,23 @@ export function createJobsController(deps: JobsDependencies): JobsController {
     );
   });
 
+  /**
+   * Lock: what a result must have been made with to be handed out, while results are about to
+   * be made again; null while every result is on offer.
+   */
+  const lockTarget = computed(() =>
+    deps.mode.value === 'lock' && summary.value.relock > 0 ? formRevision.value : null,
+  );
+
   const unsavedWork = computed(() =>
-    records.value.some((entry) =>
-      MODES.some((mode) => {
+    records.value.some((entry) => {
+      const kept = entry.replaced.value?.result;
+      if (kept && !kept.saved) return true;
+      return MODES.some((mode) => {
         const run = entry.runs[mode].value;
         return isProcessing(run) || (run.result !== null && !run.result.saved);
-      }),
-    ),
+      });
+    }),
   );
 
   const overallProgress = computed(() => {
@@ -483,6 +550,7 @@ export function createJobsController(deps: JobsDependencies): JobsController {
     const runs = { unlock: signal<Run>(IDLE_RUN), lock: signal<Run>(IDLE_RUN) };
     const progressOf = { unlock: signal(0), lock: signal(0) };
     const password = signal('');
+    const retry = signal('');
     return {
       ...base,
       file,
@@ -491,9 +559,12 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       runs,
       progressOf,
       password,
+      retry,
       opened: '',
+      replaced: signal<Run | null>(null),
       aborts: { inspect: null, unlock: null, lock: null },
       currentPassword: password,
+      retryPassword: retry,
       view: computed(() =>
         deriveEntryView(base, inspection.value, runs[deps.mode.value].value, viewContext()),
       ),
@@ -598,6 +669,9 @@ export function createJobsController(deps: JobsDependencies): JobsController {
         const name = entry.runs[other].peek().outputName;
         if (name !== null) taken.push(name);
       }
+      // A result that is kept aside may come back under its name.
+      const kept = entry.replaced.peek()?.outputName;
+      if (kept && !(mode === 'lock' && replaced.has(entry))) taken.push(kept);
     }
     const wanted = targets.map((entry) => outputFileName(entry.name, operation, naming));
     return uniqueNames([...taken, ...wanted]).slice(taken.length);
@@ -661,20 +735,27 @@ export function createJobsController(deps: JobsDependencies): JobsController {
           outputName,
           result: toResult(job, outputName, processed),
         };
+        if (mode === 'lock') entry.replaced.value = null;
+        else entry.retry.value = '';
       });
       return 'done';
     } catch (error) {
       if (!isCurrent()) return 'cancelled';
       const failure = toEntryError(error);
       if (failure.code === 'cancelled') {
-        entry.runs[mode].value = IDLE_RUN;
+        rest(entry, mode);
         return 'cancelled';
       }
       if (failure.code === 'password-incorrect' || failure.code === 'password-required') {
         const { ownField } = entry.runs[mode].peek();
-        entry.runs[mode].value = { ...IDLE_RUN, passwordRejected: true, ownField };
+        batch(() => {
+          entry.runs[mode].value = { ...IDLE_RUN, passwordRejected: true, ownField };
+          // The input no longer opens the way it did: what was made from it is not put back.
+          if (mode === 'lock') entry.replaced.value = null;
+        });
         return 'rejected';
       }
+      // A result that this run was to replace stays aside: "retry" brings it back.
       entry.runs[mode].value = { ...IDLE_RUN, status: 'failed', error: failure };
       return 'failed';
     } finally {
@@ -720,19 +801,45 @@ export function createJobsController(deps: JobsDependencies): JobsController {
     });
   }
 
-  function hasLockRun(entry: EntryRecord): boolean {
-    const run = entry.runs.lock.peek();
-    return run.status === 'done' || isProcessing(run);
+  /**
+   * A run that is no longer in flight comes to rest: in Lock mode on the finished run it was
+   * started to replace, if there is one.
+   */
+  function rest(entry: EntryRecord, mode: Mode): void {
+    const kept = mode === 'lock' ? entry.replaced.peek() : null;
+    batch(() => {
+      entry.runs[mode].value = kept ?? IDLE_RUN;
+      entry.progressOf[mode].value = kept ? 1 : 0;
+      if (mode === 'lock') {
+        entry.replaced.value = null;
+        forgetOpened(entry);
+      }
+    });
   }
 
-  /** The password that opened an input is kept for the Lock run it belongs to, no longer. */
+  function hasLockRun(entry: EntryRecord): boolean {
+    const run = entry.runs.lock.peek();
+    return run.status === 'done' || isProcessing(run) || entry.replaced.peek() !== null;
+  }
+
+  /** The password that opened an input is kept for the Lock runs it belongs to, no longer. */
   function forgetOpened(entry: EntryRecord): void {
     if (!hasLockRun(entry)) entry.opened = '';
   }
 
-  /** The submitted lock settings, passwords included, go when no result carries them any more. */
+  /** Submitted lock settings, passwords included, go when nothing was made with them any more. */
   function dropUnusedLockSettings(): void {
-    if (lockSettings.peek() !== null && !records.peek().some(hasLockRun)) lockSettings.value = null;
+    const used = new Set<number | null>();
+    for (const entry of records.peek()) {
+      const run = entry.runs.lock.peek();
+      if (isProcessing(run)) used.add(lockSubmitted.peek());
+      if (run.result) used.add(run.result.settings);
+      const kept = entry.replaced.peek()?.result;
+      if (kept) used.add(kept.settings);
+    }
+    const revisions = lockRevisions.peek();
+    if ([...revisions.keys()].every((revision) => used.has(revision))) return;
+    lockRevisions.value = new Map([...revisions].filter(([revision]) => used.has(revision)));
   }
 
   /**
@@ -806,7 +913,9 @@ export function createJobsController(deps: JobsDependencies): JobsController {
         jobs.push({ entry, password: '', operation, settings: null });
       } else if (state === 'needs-password' || state === 'wrong-password') {
         locked++;
-        if (password !== '') jobs.push({ entry, password, operation, settings: null });
+        // The shared password is for every file; without one, a card's own field counts.
+        const tried = password !== '' ? password : untracked(() => ownPassword(entry));
+        if (tried !== '') jobs.push({ entry, password: tried, operation, settings: null });
       }
     }
     if (jobs.length === 0) return refused(locked > 0 ? 'password-required' : 'nothing-to-do');
@@ -815,7 +924,7 @@ export function createJobsController(deps: JobsDependencies): JobsController {
     keepRetryFields();
     const outcomes = await runJobs('unlock', jobs, (results) => {
       const tried = results.filter((_, index) => jobs[index]!.password !== '');
-      const stillInField = unlockPassword.peek() === password;
+      const stillInField = password !== '' && unlockPassword.peek() === password;
       if (tried.includes('done')) {
         // It has done its job; whatever it did not open gets a field of its own.
         if (stillInField) {
@@ -833,7 +942,10 @@ export function createJobsController(deps: JobsDependencies): JobsController {
     return toReport(outcomes);
   }
 
-  async function retryUnlock(id: string, password: string): Promise<RunReport> {
+  async function retryUnlock(
+    id: string,
+    password: string = record(id)?.retry.peek() ?? '',
+  ): Promise<RunReport> {
     const entry = record(id);
     if (!entry) return refused('nothing-to-do');
     const state = entryState(entry.inspection.peek(), entry.runs.unlock.peek(), 'unlock');
@@ -846,6 +958,15 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       operation: { kind: 'decrypt' },
       settings: null,
     };
+    // The cards have taken over: the shared password was tried and is of no further use, and
+    // the action area must not go on showing it, or the message about it.
+    if (locked && unlockRejected.peek()) {
+      batch(() => {
+        unlockPassword.value = '';
+        unlockRevealed.value = false;
+        unlockRejected.value = false;
+      });
+    }
     keepRetryFields();
     const outcomes = await runJobs('unlock', [job], () => {
       keepRetryFields();
@@ -866,11 +987,10 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       encrypt = submitted.options;
     }
 
-    // The settings the results in the list were made with keep their number, and with it those
+    // Settings that something in the list was made with keep their number, and with it those
     // results; anything else is a new set.
-    const applied = lockSettings.peek();
-    const repeated = applied !== null && sameEncryptOptions(applied.options, encrypt);
-    const revision = repeated ? applied.revision : lastRevision + 1;
+    const known = revisionOf(lockRevisions.peek(), encrypt);
+    const revision = known ?? lastRevision + 1;
     const operation: Operation = { kind: 'encrypt', options: encrypt };
 
     const jobs: Job[] = [];
@@ -879,41 +999,44 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       for (const entry of records.peek()) {
         const inspection = entry.inspection.peek();
         const run = entry.runs.lock.peek();
-        let state = entryState(inspection, run, 'lock');
-        // Made, or being made, with other settings: the file starts over from its input, so
-        // that every result in the list ends up with the settings submitted now.
-        const outdated =
+        const state = entryState(inspection, run, 'lock');
+        // Made, or being made, with other settings: the file is processed again from its input,
+        // so that every result in the list ends up with the settings submitted now.
+        const again =
           state === 'done'
             ? run.result?.settings !== revision
-            : state === 'processing' && !repeated;
-        let reopened = '';
-        if (outdated) {
-          reopened = entry.opened;
-          if (state === 'processing') stopRun(entry, 'lock');
-          else entry.runs.lock.value = IDLE_RUN;
-          state = entryState(inspection, IDLE_RUN, 'lock');
-        }
-        if (state === 'ready') {
+            : state === 'processing' && lockSubmitted.peek() !== revision;
+        const from = again ? entryState(inspection, IDLE_RUN, 'lock') : state;
+        if (from === 'ready') {
           jobs.push({ entry, password: '', operation, settings: revision });
-        } else if (state === 'encrypted') {
+        } else if (from === 'encrypted') {
+          const reopened = again ? entry.opened : '';
           const current = needsOpenPassword(inspection) ? reopened || entry.password.peek() : '';
           if (needsOpenPassword(inspection) && current === '') {
             waiting++;
-            patchRun(entry, 'lock', { passwordMissing: true });
+            if (!again) patchRun(entry, 'lock', { passwordMissing: true });
           } else {
             jobs.push({ entry, password: current, operation, settings: revision });
           }
-        } else if (state === 'wrong-password') {
+        } else if (from === 'wrong-password') {
           // The rejected password is still in the field; it has to be corrected first.
           waiting++;
         }
       }
       if (jobs.length > 0) {
         lastRevision = Math.max(lastRevision, revision);
-        lockSettings.value = { revision, options: encrypt };
-        for (const job of jobs) job.entry.opened = job.password;
-      } else {
-        dropUnusedLockSettings();
+        if (known === undefined) {
+          lockRevisions.value = new Map(lockRevisions.peek()).set(revision, encrypt);
+        }
+        lockSubmitted.value = revision;
+        for (const { entry, password } of jobs) {
+          const run = entry.runs.lock.peek();
+          // What is finished is kept aside until its replacement is; what is still running is
+          // dropped, and what that run was to replace stays aside for the new one.
+          if (run.status === 'done') entry.replaced.value = run;
+          else abortRun(entry, 'lock');
+          entry.opened = password;
+        }
       }
     });
     if (jobs.length === 0) {
@@ -936,17 +1059,18 @@ export function createJobsController(deps: JobsDependencies): JobsController {
 
   // --- Cancelling, removing --------------------------------------------------------------------
 
-  function stopRun(entry: EntryRecord, mode: Mode): void {
+  /** Stops the engine's work on a file without touching the file's state. */
+  function abortRun(entry: EntryRecord, mode: Mode): boolean {
     const controller = entry.aborts[mode];
-    if (!controller) return;
+    if (!controller) return false;
     // Detached first: the state changes now, not when the engine has noticed the abort.
     entry.aborts[mode] = null;
     controller.abort();
-    batch(() => {
-      entry.runs[mode].value = IDLE_RUN;
-      entry.progressOf[mode].value = 0;
-      if (mode === 'lock') forgetOpened(entry);
-    });
+    return true;
+  }
+
+  function stopRun(entry: EntryRecord, mode: Mode): void {
+    if (abortRun(entry, mode)) rest(entry, mode);
   }
 
   function detach(entry: EntryRecord): void {
@@ -959,7 +1083,9 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       controller?.abort();
     }
     entry.password.value = '';
+    entry.retry.value = '';
     entry.opened = '';
+    entry.replaced.value = null;
   }
 
   /** Nothing is left to use a password on: all of them go, the lock form's included. */
@@ -968,7 +1094,7 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       unlockPassword.value = '';
       unlockRevealed.value = false;
       unlockRejected.value = false;
-      lockSettings.value = null;
+      lockRevisions.value = new Map();
       deps.lockForm.clearSecrets();
     });
   }
@@ -1019,18 +1145,25 @@ export function createJobsController(deps: JobsDependencies): JobsController {
     });
   }
 
+  /** The result of a file in `mode`, unless it is withheld (see `ResultView.withheld`). */
+  function offered(entry: EntryRecord | undefined, mode: Mode): EntryResult | null {
+    const result = entry?.runs[mode].peek().result ?? null;
+    const target = mode === 'lock' ? lockTarget.peek() : null;
+    return result && target !== null && result.settings !== target ? null : result;
+  }
+
   function currentResults(): { mode: Mode; results: EntryResult[] } {
     const mode = deps.mode.peek();
     const results = records
       .peek()
-      .map((entry) => entry.runs[mode].peek().result)
+      .map((entry) => offered(entry, mode))
       .filter((result): result is EntryResult => result !== null);
     return { mode, results };
   }
 
   function resultOf(id: string): { mode: Mode; result: EntryResult } | null {
     const mode = deps.mode.peek();
-    const result = record(id)?.runs[mode].peek().result;
+    const result = offered(record(id), mode);
     return result ? { mode, result } : null;
   }
 
@@ -1136,6 +1269,10 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       unlockRevealed.value = revealed;
     },
     unlockAll: (password) => track(unlockAll(password)),
+    setRetryPassword(id, value) {
+      const entry = record(id);
+      if (entry) entry.retry.value = value;
+    },
     retryUnlock: (id, password) => track(retryUnlock(id, password)),
 
     setCurrentPassword(id, value) {
@@ -1151,7 +1288,7 @@ export function createJobsController(deps: JobsDependencies): JobsController {
     },
     lockAll: (options) => track(lockAll(options)),
     copyLockPassword() {
-      return deps.lockForm.copyText(lockSettings.peek()?.options.userPassword ?? '');
+      return deps.lockForm.copyText(lockApplied.peek()?.password ?? '');
     },
     runPrimary() {
       return track(deps.mode.peek() === 'unlock' ? unlockAll() : lockAll());
@@ -1179,7 +1316,7 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       if (!entry) return;
       const mode = deps.mode.peek();
       if (entry.runs[mode].peek().status === 'failed') {
-        entry.runs[mode].value = IDLE_RUN;
+        rest(entry, mode);
       } else if (entry.inspection.peek().status === 'failed') {
         inspect(entry);
       }

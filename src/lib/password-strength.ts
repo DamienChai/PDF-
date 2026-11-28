@@ -2,7 +2,7 @@
  * Offline password strength estimate.
  *
  * The password is decomposed into the cheapest sequence of guessable patterns (common passwords,
- * pinyin names, a word with digits behind it, keyboard walks, sequences, repeats, dates) and
+ * pinyin names, a word decorated with digits, keyboard walks, sequences, repeats, dates) and
  * random-looking characters, in the manner of zxcvbn but with a compact dictionary. The result
  * is the entropy an attacker who knows these patterns has to search, in bits.
  *
@@ -192,6 +192,8 @@ function dictionaryPatterns(chars: readonly string[]): Pattern[] {
 // --- Pinyin names ("zhangwei", "LiuYang", "wangxiaoming") ----------------------------------------
 
 const SYLLABLE_BITS = Math.log2(PINYIN_SYLLABLES.size);
+/** The handful of characters people put between two parts of a password: "-", ".", "_", "@" … */
+const SEPARATOR_BITS = 3;
 /** Surname and given name, with room for a compound surname or a word in front. */
 const MAX_SYLLABLES = 5;
 
@@ -203,13 +205,19 @@ function pinyinPatterns(chars: readonly string[]): Pattern[] {
     let reached = new Map<number, number>([[start, 0]]);
     for (let count = 1; count <= MAX_SYLLABLES && reached.size > 0; count++) {
       const next = new Map<number, number>();
-      for (const [from, bits] of reached) {
-        const longest = Math.min(LONGEST_PINYIN_SYLLABLE, chars.length - from);
-        for (let length = 2; length <= longest; length++) {
-          const end = from + length;
-          if (!PINYIN_SYLLABLES.has(lower.slice(from, end).join(''))) continue;
-          const total = bits + SYLLABLE_BITS + capitalisationBits(chars.slice(from, end));
-          if (total < (next.get(end) ?? Infinity)) next.set(end, total);
+      for (const [end, bits] of reached) {
+        // "zhang-wei", "Zhang.Wei": one separator between two syllables changes little.
+        const separated = count > 1 && end < chars.length && classOf(chars[end]!) === 'symbol';
+        const starts: [number, number][] = [[end, bits]];
+        if (separated) starts.push([end + 1, bits + SEPARATOR_BITS]);
+        for (const [from, before] of starts) {
+          const longest = Math.min(LONGEST_PINYIN_SYLLABLE, chars.length - from);
+          for (let length = 2; length <= longest; length++) {
+            const to = from + length;
+            if (!PINYIN_SYLLABLES.has(lower.slice(from, to).join(''))) continue;
+            const total = before + SYLLABLE_BITS + capitalisationBits(chars.slice(from, to));
+            if (total < (next.get(to) ?? Infinity)) next.set(to, total);
+          }
         }
       }
       for (const [end, bits] of next) {
@@ -222,64 +230,97 @@ function pinyinPatterns(chars: readonly string[]): Pattern[] {
   return patterns;
 }
 
-// --- A word with digits behind it ("Company2025", "holiday99!") ----------------------------------
+// --- A word decorated with digits ("Company2025", "Company@2025", "2025Company") -----------------
 
 const MAX_WORD_LENGTH = 16;
 const MAX_WORD_DIGITS = 8;
+const MAX_SEPARATORS = 2;
 const MAX_TRAILING_SYMBOLS = 2;
+/** "Tr0ub4dor": more replaced letters than this and it is no longer taken for a word. */
+const MAX_WORD_SUBSTITUTIONS = 2;
+const SUBSTITUTION_BITS = 2;
 const VOWELS = new Set('aeiouy');
+
+function isLetter(char: string | undefined): char is string {
+  if (char === undefined) return false;
+  const charClass = classOf(char);
+  return charClass === 'lower' || charClass === 'upper';
+}
 
 /**
  * True for letters that read like a word or a name: written the way words are (lower case,
  * Capitalised or CAPITALS), with a vowel, and with nothing but usual letter pairs. Without a
  * dictionary this is as close as it gets: "xkqmvlpt" is not taken for a word, a made-up
- * "bolaxi" is.
+ * "bolaxi" is. `spelled` is the same text in lower case with replaced letters put back.
  */
-function looksLikeWord(letters: readonly string[]): boolean {
+function looksLikeWord(letters: readonly string[], spelled: readonly string[]): boolean {
   const upper = letters.filter((char) => classOf(char) === 'upper').length;
   const usualCase =
     upper === 0 || upper === letters.length || (upper === 1 && classOf(letters[0]!) === 'upper');
   if (!usualCase) return false;
-  const lower = letters.map((char) => char.toLowerCase());
   return (
-    lower.some((char) => VOWELS.has(char)) &&
-    lower.every((char, index) => index === 0 || isUsualLetterPair(lower[index - 1]!, char))
+    spelled.some((char) => VOWELS.has(char)) &&
+    spelled.every((char, index) => index === 0 || isUsualLetterPair(spelled[index - 1]!, char))
   );
 }
 
 /**
- * The whole password is letters, then a few digits, then at most a symbol or two: the shape
- * every guessing tool derives from its word and name lists ("append a year", "append 123"). The
- * letters then count as an entry of such a list (a few million entries, somewhat more for long
- * words), not as letters chosen at random. The digits and symbols are judged separately.
+ * The whole password is one word with decorations: digits in front of it, or behind it with or
+ * without a separator ("Company@2025"), and at most a symbol or two at the very end. These are
+ * the shapes every guessing tool derives from its word and name lists ("append a year", "append
+ * @123", "prepend digits"), also for a word with a letter or two replaced by look-alikes
+ * ("Tr0ub4dor&3"). The word then counts as an entry of such a list (a few million entries,
+ * somewhat more for long words), not as letters chosen at random. Digits and trailing symbols
+ * are judged separately.
  */
 function wordPatterns(chars: readonly string[]): Pattern[] {
-  let end = 0;
-  while (
-    end < chars.length &&
-    (classOf(chars[end]!) === 'lower' || classOf(chars[end]!) === 'upper')
-  ) {
-    end++;
+  let start = 0;
+  while (isDigit(chars[start])) start++;
+  // The word: letters, possibly with look-alikes among them, from a letter to a letter.
+  let end = start;
+  while (end < chars.length && (isLetter(chars[end]) || chars[end]! in LEET)) end++;
+  while (end > start && !isLetter(chars[end - 1])) end--;
+  let separatorsEnd = end;
+  while (separatorsEnd < chars.length && classOf(chars[separatorsEnd]!) === 'symbol') {
+    separatorsEnd++;
   }
-  let digitsEnd = end;
+  let digitsEnd = separatorsEnd;
   while (isDigit(chars[digitsEnd])) digitsEnd++;
   let symbolsEnd = digitsEnd;
   while (symbolsEnd < chars.length && classOf(chars[symbolsEnd]!) === 'symbol') symbolsEnd++;
-  const digits = digitsEnd - end;
+
+  const length = end - start;
+  const digits = digitsEnd - separatorsEnd;
+  // Without digits behind them the "separators" are the symbols at the end.
+  const separators = digits > 0 ? separatorsEnd - end : 0;
   if (
-    end < 3 ||
-    end > MAX_WORD_LENGTH ||
-    digits < 1 ||
-    digits > MAX_WORD_DIGITS ||
     symbolsEnd !== chars.length ||
-    symbolsEnd - digitsEnd > MAX_TRAILING_SYMBOLS
+    !isLetter(chars[start]) ||
+    length < 3 ||
+    length > MAX_WORD_LENGTH ||
+    start > MAX_WORD_DIGITS ||
+    digits > MAX_WORD_DIGITS ||
+    start + digits < 1 ||
+    separators > MAX_SEPARATORS ||
+    symbolsEnd - digitsEnd + (digits > 0 ? 0 : separatorsEnd - end) > MAX_TRAILING_SYMBOLS
   ) {
     return [];
   }
-  const word = chars.slice(0, end);
-  if (!looksLikeWord(word)) return [];
-  const bits = Math.min(end * Math.log2(26), 16 + 0.75 * end) + capitalisationBits(word);
-  return [{ start: 0, end, bits, kind: 'word' }];
+
+  const word = chars.slice(start, end);
+  const letters = word.filter(isLetter);
+  const substitutions = word.length - letters.length;
+  // Behind digits, look-alikes are not accepted: random letters and digits would qualify too often.
+  if (substitutions > (start === 0 ? MAX_WORD_SUBSTITUTIONS : 0)) return [];
+  const lower = word.map((char) => char.toLowerCase());
+  const spellings = substitutions === 0 ? [lower] : [unleet(lower, 'l'), unleet(lower, 'i')];
+  if (!spellings.some((spelled) => looksLikeWord(letters, spelled))) return [];
+  const bits =
+    Math.min(length * Math.log2(26), 16 + 0.75 * length) +
+    capitalisationBits(letters) +
+    substitutions * SUBSTITUTION_BITS +
+    separators * SEPARATOR_BITS;
+  return [{ start, end: end + separators, bits, kind: 'word' }];
 }
 
 // --- Sequences ("abcdef", "9876", "2468") ------------------------------------------------------

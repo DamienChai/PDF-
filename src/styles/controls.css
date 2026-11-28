@@ -219,7 +219,7 @@
 .hint {
   font: var(--type-caption);
   color: var(--color-text-2);
-  text-wrap: pretty;
+  text-wrap: var(--wrap-notes);
 }
 
 .hint--danger {
@@ -292,6 +292,12 @@
   padding-left: 10px;
 }
 
+/* In front of a trailing action the text runs up to it: the blank half of that button around
+   its icon is the gap. */
+.input__control:has(+ .input__action) {
+  padding-right: 0;
+}
+
 .input__control::placeholder {
   color: var(--color-text-3);
   opacity: 1;
@@ -304,6 +310,17 @@
 .input__control--mono {
   font-family: var(--font-mono);
   letter-spacing: 0.01em;
+}
+
+/* A generated password (20 characters) is shown whole on a 360px phone too. Not on iOS, which
+   zooms into a focused field whose text is smaller than 16px: an iPhone is at least 375px wide,
+   where 16px fit. */
+@media (max-width: 374.98px) {
+  @supports not (-webkit-touch-callout: none) {
+    .input__control--mono {
+      font-size: 0.875rem;
+    }
+  }
 }
 
 /* Trailing actions (show / hide, copy) fill the height of the field and are 48px wide on touch. */
@@ -467,7 +484,7 @@
 .row__desc {
   font: var(--type-caption);
   color: var(--color-text-2);
-  text-wrap: pretty;
+  text-wrap: var(--wrap-notes);
 }
 
 /* The control of a row keeps its size; the text beside it gives way. */
@@ -542,7 +559,7 @@ label.row,
 .choice__desc {
   font: var(--type-caption);
   color: var(--color-text-2);
-  text-wrap: pretty;
+  text-wrap: var(--wrap-notes);
 }
 
 .choice:has(input:checked) {
@@ -746,7 +763,7 @@ label.row,
   gap: var(--space-2);
   font: var(--type-caption);
   color: var(--color-text-2);
-  text-wrap: pretty;
+  text-wrap: var(--wrap-notes);
 }
 
 .notice > .icon {

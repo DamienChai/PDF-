@@ -79,6 +79,8 @@
   --type-button: 600 1rem/1.25rem var(--font-sans);
   --type-cta: 700 1.125rem/1.5rem var(--font-sans);
   --type-mono: 500 0.8125rem/1.125rem var(--font-mono);
+  /* Notes and advice: the browser tidies their last lines (see the Chinese exception below). */
+  --wrap-notes: pretty;
 
   /* Space: a 4px grid */
   --space-1: 4px;
@@ -295,4 +297,11 @@
   html {
     font-size: 125%;
   }
+}
+
+/* Chinese notes keep their last clause together as one piece (prose.tsx, .keep) and break in
+   front of it. The browser's tidying would move that break back into the clause before:
+   "……数字和符 / 号，最多 32 个字符". */
+:root:lang(zh) {
+  --wrap-notes: wrap;
 }

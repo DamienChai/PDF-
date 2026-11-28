@@ -1,7 +1,7 @@
 /**
  * Random interleavings of everything a person can do with the list, checked against what must
- * hold whatever the order: nothing gets stuck, one password opens every Lock result, and no
- * password outlives its use.
+ * hold whatever the order: nothing gets stuck, every Lock result that is handed out opens with
+ * the password on screen, and no password outlives its use.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -125,26 +125,44 @@ async function play(seed: number): Promise<string[]> {
     }
   }
 
-  // One set of lock settings: what the panel shows opens every Lock result, and is kept for
-  // exactly as long as there is one.
+  // One set of lock settings: whatever the list hands out opens with the password on screen,
+  // which is the result panel's once everything is finished and the form's until then. A result
+  // made with anything else waits to be locked again and cannot be saved meanwhile.
   h.mode.value = 'lock';
   const applied = h.jobs.lockApplied.value;
-  const locked = h.jobs.entries.value.filter((entry) => entry.view.value.result !== null);
-  if ((applied === null) !== (locked.length === 0)) {
-    problems.push(`${locked.length} lock results, applied settings ${applied ? 'kept' : 'gone'}`);
+  const finished = h.jobs.summary.value.phase === 'finished';
+  const locked = h.jobs.entries.value.filter((entry) => entry.view.value.state === 'done');
+  if (locked.length === 0 && applied !== null) {
+    problems.push('applied settings are kept although the list has no lock result');
   }
+  if (finished && applied === null) problems.push('lock results, but no settings to show for them');
+  const shown = finished ? (applied?.password ?? '') : h.lockForm.options.value.userPassword;
   for (const entry of locked) {
+    const offered = entry.view.value.result?.withheld === false;
+    const before = h.save.calls.length;
     await h.jobs.save(entry.id);
+    if (!offered) {
+      if (finished) problems.push(`the result of ${entry.name} is withheld with nothing to do`);
+      if (h.save.calls.length > before) problems.push(`${entry.name}: a withheld result was saved`);
+      continue;
+    }
     const output = h.save.calls.at(-1)!.files[0]!.blob;
-    const opened = await h.engine.inspect(output, applied?.password ?? '');
+    const opened = await h.engine.inspect(output, shown);
     if (!opened.encrypted || opened.access === 'locked') {
       problems.push(`the result of ${entry.name} does not open with the password shown`);
     }
     for (const other of NEW_PASSWORDS) {
-      if (other === applied?.password) continue;
+      if (other === shown) continue;
       if ((await h.engine.inspect(output, other)).access !== 'locked') {
         problems.push(`the result of ${entry.name} opens with ${other}, which is not shown`);
       }
+    }
+  }
+  // Results that differ among themselves never rest: the next run makes them alike.
+  if (!finished && locked.some((entry) => entry.view.value.result?.withheld)) {
+    const { primary } = h.jobs.summary.value;
+    if (!primary || primary.count === 0) {
+      problems.push('a result waits to be locked again, but nothing offers to do that');
     }
   }
 

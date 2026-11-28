@@ -5,10 +5,12 @@
 import { useId, useRef, useState } from 'preact/hooks';
 import { formatPages, formatSize, phrasesOf, t, type Message, type Text } from '../i18n';
 import { jobs, type Entry, type EntryView, type PasswordFieldView } from '../state';
+import { unlockField } from './dock-parts';
 import { FileName } from './file-name';
 import { afterRender, focusQuietly } from './focus';
 import { Icon } from './icons';
 import { PasswordInput } from './password-input';
+import { Prose } from './prose';
 
 /** "2.4 MB · 12 pages", as far as it is known. */
 export function metaText(view: EntryView): string {
@@ -89,10 +91,16 @@ export function inlinePasswordField(entryId: string): HTMLInputElement | null {
   );
 }
 
+/** Where the next password is typed: the first card with a field of its own, else the shared field. */
+function nextPasswordField(): HTMLInputElement | null {
+  return document.querySelector<HTMLInputElement>('[data-inline-password]') ?? unlockField();
+}
+
 /**
  * Unlock mode, several files: the shared password did not open this one. Its own field with a
  * labelled button, tried against this file only. While its password is being tried the field
- * stays (read-only), so that the focus and the keyboard do too.
+ * stays (read-only), so that the focus and the keyboard do too. What is typed lives in the
+ * controller: the action area's button tries it as well when the shared field is empty.
  */
 export function RetryForm({
   entry,
@@ -103,7 +111,7 @@ export function RetryForm({
   field: PasswordFieldView;
   busy: boolean;
 }) {
-  const [value, setValue] = useState('');
+  const value = entry.retryPassword.value;
   const [revealed, setRevealed] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const id = useId();
@@ -114,9 +122,18 @@ export function RetryForm({
       focusQuietly(input.current);
       return;
     }
-    void jobs.retryUnlock(entry.id, value).then((report) => {
-      // Still wrong: ready to be typed over.
-      if (report.rejected > 0) afterRender(() => focusQuietly(input.current, true));
+    void jobs.retryUnlock(entry.id).then((report) => {
+      if (report.rejected === 0 && report.done === 0) return;
+      afterRender(() => {
+        // Unlocked: this form is gone, and the field that had the focus with it.
+        const field = input.current;
+        const active = document.activeElement;
+        const here = field?.closest('[data-entry]')?.contains(active) ?? false;
+        // The user has gone on to something else: the cursor stays there.
+        if (!here && active !== null && active !== document.body) return;
+        // Still wrong: ready to be typed over. Unlocked: on to the next password.
+        focusQuietly(report.rejected > 0 ? field : nextPasswordField(), true);
+      });
     });
   }
 
@@ -130,7 +147,7 @@ export function RetryForm({
           id={id}
           inputRef={input}
           value={value}
-          onInput={setValue}
+          onInput={(typed) => jobs.setRetryPassword(entry.id, typed)}
           revealed={revealed}
           onReveal={setRevealed}
           placeholder={t(field.placeholder)}
@@ -193,10 +210,15 @@ export function CurrentPasswordField({ entry, view }: { entry: Entry; view: Entr
   );
 }
 
-/** Save, share, open for one finished file. All of them need the click's user activation. */
+/**
+ * Save, share, open for one finished file. All of them need the click's user activation. A
+ * result that is withheld has a note in their place, as high as they are: typing in the lock
+ * form must not make the list jump.
+ */
 export function ResultActions({ view }: { view: EntryView }) {
   const { result } = view;
   if (!result) return null;
+  if (result.withheld) return <p class="actions actions--withheld">{t('entry.note.willRelock')}</p>;
   return (
     <div class="actions">
       <button
@@ -235,7 +257,9 @@ export function ErrorBlock({ view }: { view: EntryView }) {
     <div class="problem">
       <p class="problem__text">
         <strong class="problem__title">{t(error.title)}</strong>
-        <span class="problem__advice">{t(error.advice)}</span>
+        <span class="problem__advice">
+          <Prose text={t(error.advice)} />
+        </span>
       </p>
       <div class="problem__actions">
         {view.canRetry && (

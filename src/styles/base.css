@@ -129,6 +129,14 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+/* A piece of running text that stays together: an item of a list ("不可修改、"), or the end of
+   a sentence so that the last line is never a stub (prose.tsx). Lines break in front of the
+   piece or after it, not inside it, unless it alone is wider than the line. */
+.phrase,
+.keep {
+  display: inline-block;
+}
+
 .mono {
   font-family: var(--font-mono);
 }

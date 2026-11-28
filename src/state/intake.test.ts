@@ -258,8 +258,9 @@ describe('dropped folders', () => {
     expect(drop.defaultPrevented).toBe(true);
     await tick();
     expect(added).toEqual([
-      // Folder by folder in the order of the names; other files and hidden things are left out.
-      { names: ['9.pdf', '10.pdf', 'march.PDF', 'deep.pdf', 'a.pdf', 'b.pdf'], source: 'drop' },
+      // Folder by folder, a folder's own PDFs before its subfolders', each in the order of the
+      // names; other files and hidden things are left out.
+      { names: ['a.pdf', 'b.pdf', '9.pdf', '10.pdf', 'march.PDF', 'deep.pdf'], source: 'drop' },
     ]);
     expect(notices).toEqual([]);
   });
@@ -317,7 +318,41 @@ describe('dropped folders', () => {
     fire('drop', transferOf([folder('junk', [...junk, pdf('last.pdf')])]));
     await tick();
     expect(added).toEqual([]);
+    // Nothing was added, so the message does not claim that some PDFs were.
+    expect(notices).toEqual(['toast.folderTooLarge (error)']);
+  });
+
+  it('finds the PDFs of a folder whatever its subfolders hold', async () => {
+    // Subfolders full of other things, sorting before the PDFs that lie next to them.
+    const photos = Array.from({ length: 4 }, (_, index) =>
+      folder(
+        `photos-${index}`,
+        Array.from({ length: 5 }, (_, shot) => new File(['x'], `${shot}.jpg`)),
+      ),
+    );
+    const { added, notices, fire } = setup({
+      folderLimits: { maxFiles: 5, maxEntries: 20, maxDepth: 3 },
+    });
+    fire(
+      'drop',
+      transferOf([
+        folder('documents', [...photos, folder('zz-docs', [pdf('deep.pdf')]), pdf('zz-last.pdf')]),
+      ]),
+    );
+    await tick();
+    // The subfolders use up the entries that may be looked at; the folder's own PDF is in.
+    expect(added).toEqual([{ names: ['zz-last.pdf'], source: 'drop' }]);
     expect(notices).toEqual(['toast.folderLimit (neutral)']);
+  });
+
+  it('does not claim to have added PDFs when the levels ran out before any was found', async () => {
+    const { added, notices, fire } = setup({
+      folderLimits: { maxFiles: 5, maxEntries: 100, maxDepth: 2 },
+    });
+    fire('drop', transferOf([folder('1', [folder('2', [folder('3', [])])])]));
+    await tick();
+    expect(added).toEqual([]);
+    expect(notices).toEqual(['toast.folderTooLarge (error)']);
   });
 
   it('does not go deeper than the limit of levels', async () => {
@@ -330,7 +365,7 @@ describe('dropped folders', () => {
     ]);
     fire('drop', transferOf([nested]));
     await tick();
-    expect(added).toEqual([{ names: ['two.pdf', 'one.pdf'], source: 'drop' }]);
+    expect(added).toEqual([{ names: ['one.pdf', 'two.pdf'], source: 'drop' }]);
     expect(notices).toEqual(['toast.folderLimit (neutral)']);
   });
 

@@ -16,6 +16,7 @@ import {
 import { doneMessage } from './file-parts';
 import { Icon } from './icons';
 import { PasswordInput } from './password-input';
+import { Prose } from './prose';
 
 export interface BarProps {
   summary: Summary;
@@ -87,7 +88,7 @@ export function UnlockBar({ summary, guard }: BarProps) {
         {processing && <OverallProgress class="dock__inline-progress" />}
         {error && (
           <p class="hint dock__help" id="unlock-retry-hint">
-            {t('error.password-incorrect.advice')}
+            <Prose text={t('error.password-incorrect.advice')} />
           </p>
         )}
         {!error && !processing && summary.passwordHint && (
@@ -130,7 +131,11 @@ export function FreeBar({ summary, guard }: BarProps) {
         {t('dock.noPassword.headline')}
       </Status>
       <div class="dock__slot">
-        <p class="dock__note">{t('dock.noPassword.note')}</p>
+        <p class="dock__note">
+          <span>
+            <Prose text={t('dock.noPassword.note')} />
+          </span>
+        </p>
       </div>
       <div class="dock__primary">
         <PrimaryButton
@@ -193,7 +198,11 @@ export function DoneBar({ summary, guard }: BarProps) {
       <Status icon="check" tone="success" aside={aside}>
         {summary.status ? t(summary.status) : ''}
       </Status>
-      {onlyResult && <p class="hint dock__help">{t(doneMessage(onlyResult))}</p>}
+      {onlyResult && (
+        <p class="hint dock__help">
+          <Prose text={t(doneMessage(onlyResult))} />
+        </p>
+      )}
       <div class="dock__slot dock__slot--actions">
         {summary.canShareAll && (
           <button
@@ -281,7 +290,9 @@ export function LockBar({ summary, guard }: BarProps) {
         ) : (
           <p class="dock__headline dock__headline--warning">
             <Icon name="warning" size="sm" />
-            <span>{t('lock.warning')}</span>
+            <span>
+              <Prose text={t('lock.warning')} />
+            </span>
           </p>
         )}
       </div>

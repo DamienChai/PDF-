@@ -779,14 +779,161 @@ describe('a file that lost its trailer', () => {
     expect(error?.code).toBe('damaged');
     expect(error?.detail).toContain('stream data that does not match its filter');
     expect(latin1(fixtureBytes('truncated-early-r4.pdf'))).not.toMatch(/\/Encrypt|\/Standard/);
+  });
 
-    // A content stream (nothing but /Length in its dictionary) that is not text.
-    const scrambled = edited('plain.pdf', (text) =>
-      withoutTail(text).replace(/(<< \/Length \d+ >>\nstream\n)q 60/, '$1\x9c\xf1\x07\xa3'),
+  test('LZW streams count: a file with no other kind is not taken for an unencrypted one', async () => {
+    const file = fixtureBlob('truncated-lzw-r2.pdf');
+    const text = latin1(fixtureBytes('truncated-lzw-r2.pdf'));
+    expect(text).not.toMatch(/\/Encrypt|\/Standard|\/FlateDecode/);
+    expect(text.match(/\/Filter \/LZWDecode/g)).toHaveLength(2);
+    const error = await failure(engine.inspect(file, 'user'));
+    expect(error?.code).toBe('damaged');
+    expect(error?.detail).toContain('stream data that does not match its filter');
+    expect(error?.detail).toContain('in 2 of 2 streams');
+    const lock = { kind: 'encrypt', options: aes256('new', '') } as const;
+    expect(await codeOf(engine.process({ file, password: '', operation: lock }))).toBe('damaged');
+
+    // The same streams with what LZW data begins with (the code that clears the table).
+    const sound = edited('truncated-lzw-r2.pdf', (damaged) =>
+      damaged.replace(/(\/Filter \/LZWDecode[^>]*>>\nstream\n)../g, '$1\x80\x0b'),
     );
-    const content = await failure(engine.inspect(scrambled));
-    expect(content?.code).toBe('damaged');
-    expect(content?.detail).toContain('stream data that does not match its filter');
+    expect((await engine.inspect(sound)).encrypted).toBe(false);
+  });
+
+  // An unencrypted file that lost its trailer is repaired, whatever unusual things it holds.
+  describe('unencrypted, with content that only looks suspicious', () => {
+    const object = (number: number, body: string): string => `${number} 0 obj\n${body}\nendobj\n`;
+    const stream = (number: number, dictionary: string, data: string): string =>
+      object(
+        number,
+        `<< ${dictionary} /Length ${data.length} >>\nstream\n${data}\nendstream`.replace(
+          '<<  ',
+          '<< ',
+        ),
+      );
+    const withObjects = (...objects: string[]): Blob =>
+      edited('plain.pdf', (text) => withoutTail(text) + objects.join(''));
+    /** Bytes that look like the output of a cipher, the same on every run. */
+    const noise = (length: number, seed = 7): string => {
+      let state = seed;
+      return Array.from({ length }, () => {
+        state = (Math.imul(state, 1103515245) + 12345) >>> 0;
+        return String.fromCharCode((state >>> 16) & 0xff);
+      }).join('');
+    };
+
+    test.each([
+      ['a table of numbers', '\x00\x00\x00\x01\x00\x02\x00\x03'.repeat(16)],
+      ['a bitmap', '\xff'.repeat(40) + '\x00'.repeat(40)],
+      [
+        'text that begins with a zero byte',
+        `\x00q 1 0 0 1 0 0 cm BT /F1 12 Tf (after a NUL) Tj ET Q`,
+      ],
+      [
+        'UTF-16 text with its byte order mark',
+        `\xfe\xff${[...'app.alert("hello");'].map((c) => `\x00${c}`).join('')}`,
+      ],
+      ['UTF-8 text with its byte order mark', '\xef\xbb\xbf<?xml version="1.0"?><data>text</data>'],
+      [
+        'Chinese text among Latin letters',
+        Buffer.from('标题 title 内容 content 第一页 page one 结束 end', 'utf8').toString('latin1'),
+      ],
+      ['an attached PNG stored as it is', `\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR${noise(200)}`],
+    ])('%s in a stream without a filter', async (_what, data) => {
+      const inspected = await engine.inspect(withObjects(stream(90, '', data)));
+      expect(inspected.encrypted).toBe(false);
+      expect(inspected.pageCount).toBe(fixture('plain.pdf').pageCount);
+    });
+
+    test('a placeholder stream that names a filter and holds a space', async () => {
+      const file = withObjects(stream(90, '/Filter /FlateDecode', ' '));
+      expect((await engine.inspect(file)).encrypted).toBe(false);
+    });
+
+    test('the words /Encrypt and /Standard in the text of a page or of a note', async () => {
+      const file = withObjects(
+        stream(90, '', 'BT /F1 12 Tf (the trailer has an /Encrypt entry, /Filter /Standard) Tj ET'),
+        object(91, '<< /Type /Annot /Contents (see /Encrypt and /Standard in the manual) >>'),
+      );
+      expect((await engine.inspect(file)).encrypted).toBe(false);
+    });
+
+    // qpdf rebuilds a document from every object it finds, also from those of a PDF that is
+    // attached without compression. If that one is encrypted, the result would be made of both.
+    test('but not with an encrypted PDF attached as it is', async () => {
+      const inner = latin1(fixtureBytes('aes-256-r6.pdf'));
+      const file = withObjects(
+        stream(90, '/Type /EmbeddedFile', inner.slice(0, inner.lastIndexOf('trailer'))),
+      );
+      const error = await failure(engine.inspect(file));
+      expect(error?.code).toBe('damaged');
+      expect(error?.detail).toContain(REFUSAL);
+    });
+
+    test('one stream that does not match its filter among many that do', async () => {
+      const zlib = '\x78\x9c\x03\x00\x00\x00\x00\x01';
+      const sound = Array.from({ length: 5 }, (_, index) =>
+        stream(90 + index, '/Filter /FlateDecode', zlib),
+      );
+      const file = withObjects(...sound, stream(99, '/Filter /FlateDecode', noise(64)));
+      expect((await engine.inspect(file)).encrypted).toBe(false);
+    });
+  });
+
+  // The other way round: what an encrypted file looks like once trailer and encryption
+  // dictionary are gone, built from an unencrypted file so that only one thing differs.
+  describe('ciphertext is recognised', () => {
+    const noise = (length: number): string => {
+      let state = 99;
+      return Array.from({ length }, () => {
+        state = (Math.imul(state, 1103515245) + 12345) >>> 0;
+        return String.fromCharCode((state >>> 16) & 0xff);
+      }).join('');
+    };
+    /** plain.pdf without its tail, the data of its page content streams replaced. */
+    const withContent = (data: (length: number) => string, dictionary = ''): Blob =>
+      edited('plain.pdf', (text) =>
+        withoutTail(text).replace(
+          /<< \/Length (\d+) >>\nstream\n[\s\S]*?\nendstream/g,
+          (_all, length: string) =>
+            `<< ${dictionary}/Length ${length} >>\nstream\n${data(Number(length))}\nendstream`,
+        ),
+      );
+
+    test('in streams without a filter', async () => {
+      // The unchanged file is repaired; so is one whose content merely starts oddly.
+      expect((await engine.inspect(withContent((n) => 'q'.repeat(n)))).encrypted).toBe(false);
+      expect(
+        (await engine.inspect(withContent((n) => `\x9c\xf1\x07\xa3${' '.repeat(n - 4)}`)))
+          .encrypted,
+      ).toBe(false);
+      const error = await failure(engine.inspect(withContent(noise)));
+      expect(error?.code).toBe('damaged');
+      expect(error?.detail).toContain('stream data that does not match its filter');
+    });
+
+    test.each([
+      '/FlateDecode',
+      '/LZWDecode',
+      '/DCTDecode',
+      '/ASCII85Decode',
+      '[ /ASCIIHexDecode /FlateDecode ]',
+    ])('under %s', async (filter) => {
+      const error = await failure(engine.inspect(withContent(noise, `/Filter ${filter} `)));
+      expect(error?.code).toBe('damaged');
+      expect(error?.detail).toContain('stream data that does not match its filter');
+    });
+
+    test('a file with no stream to look at is not called unencrypted', async () => {
+      // Cut off before the first page content: only the catalog, the page tree and metadata.
+      const text = latin1(fixtureBytes('plain.pdf'));
+      const early = new Blob([
+        Buffer.from(text.slice(0, text.indexOf('<< /Length ')), 'latin1') as BlobPart,
+      ]);
+      const error = await failure(engine.inspect(early));
+      expect(error?.code).toBe('damaged');
+      expect(error?.detail).not.toContain(REFUSAL);
+    });
   });
 
   test('the scan works across the windows it reads the file in', async () => {

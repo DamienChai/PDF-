@@ -220,12 +220,6 @@
   content: ' · ';
 }
 
-/* One item of a list in running text ("不可修改、"): lines break between items, not inside one,
-   unless a single item is wider than the line. */
-.phrase {
-  display: inline-block;
-}
-
 .output {
   display: flex;
   align-items: center;
@@ -288,6 +282,15 @@
   gap: var(--space-2);
 }
 
+/* In place of the buttons, and as high as they are. */
+.actions--withheld {
+  align-items: center;
+  min-height: var(--control-h-sm);
+  font: var(--type-caption);
+  color: var(--color-text-2);
+  text-wrap: var(--wrap-notes);
+}
+
 .problem {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -298,7 +301,7 @@
 .problem__text {
   font: var(--type-caption);
   color: var(--color-text-2);
-  text-wrap: pretty;
+  text-wrap: var(--wrap-notes);
 }
 
 .problem__title {
@@ -394,6 +397,11 @@
     /* Wide enough for the placeholder of the retry field beside its button. */
     .card .inline-form {
       width: 20rem;
+    }
+
+    /* About as wide as the buttons it stands for, so that the columns stay where they are. */
+    .card .actions--withheld {
+      max-width: 11rem;
     }
 
     /* The chip and the red field say it; the advice stays available to assistive technology. */
@@ -748,6 +756,21 @@
 .spotlight .problem__text {
   max-width: 24em;
   text-wrap: balance;
+}
+
+/* Balancing does not reckon with a piece that is kept together (it breaks the text in front of
+   it anywhere), so it is one or the other: Chinese breaks in front of its last clause, other
+   text is balanced. */
+.spotlight .problem__text .keep {
+  display: inline;
+}
+
+:lang(zh) .spotlight .problem__text {
+  text-wrap: var(--wrap-notes);
+}
+
+:lang(zh) .spotlight .problem__text .keep {
+  display: inline-block;
 }
 
 .spotlight .problem__actions {

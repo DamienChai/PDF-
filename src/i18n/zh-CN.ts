@@ -59,6 +59,7 @@ export const zhCN = {
   'entry.note.noRestrictions': '未限制任何操作',
   'entry.note.willEncrypt': '待加密',
   'entry.note.willReplace': '将替换现有保护',
+  'entry.note.willRelock': '将用新设置重新加密',
   'entry.note.needsCurrentPassword': '更换保护前，需要先输入当前密码',
   'entry.password.label': '密码',
   'entry.password.placeholder': '输入此文件的密码',
@@ -181,7 +182,7 @@ export const zhCN = {
   'strength.4': '很强',
   'strength.hint.too-short': '太短，至少使用 8 个字符',
   'strength.hint.common-password': '这是常见密码，很容易被猜到',
-  'strength.hint.name-or-word': '姓名、拼音或单词很容易被猜到，加上数字也一样',
+  'strength.hint.name-or-word': '姓名、拼音或单词很容易被猜到，加上数字和符号也一样',
   'strength.hint.repeated-characters': '避免重复的字符',
   'strength.hint.sequence': '避免连续的字符和键盘顺序，如 1234、qwerty',
   'strength.hint.single-character-class': '混合使用大小写字母、数字和符号',
@@ -268,7 +269,7 @@ export const zhCN = {
   'settings.install.description': '安装后可离线使用，也能从其他应用把 PDF 分享到这里。',
   'settings.install.installed': '已安装',
   'settings.install.hint':
-    '如果这里没有安装按钮，可以在浏览器菜单中选择“安装应用”或“添加到主屏幕”。',
+    '这里没有安装按钮时，如果浏览器支持安装，可以在它的菜单中选择“安装应用”或“添加到主屏幕”。',
 
   // --- About -----------------------------------------------------------------------------------
   'about.title': '关于',
@@ -310,6 +311,7 @@ export const zhCN = {
   'toast.shareLostCount': '有 {count} 个分享的文件未能接收，请在应用内选择',
   'toast.folderEmpty': '文件夹里没有 PDF 文件',
   'toast.folderLimit': '文件夹里的内容太多，只添加了一部分 PDF',
+  'toast.folderTooLarge': '文件夹里的内容太多，没有找到 PDF，请直接拖入 PDF 文件',
   'toast.folderUnreadable': '无法读取文件夹，请直接拖入其中的文件',
   'toast.engineUnavailable': '无法加载 PDF 引擎',
   'toast.retry': '重试',

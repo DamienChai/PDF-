@@ -2481,6 +2481,15 @@
     "sha256": "a97ce453a5ecd6e1d714d128e93cbba09cecde86ccbe4f423e5aa94efd7f9050"
   },
   {
+    "file": "truncated-lzw-r2.pdf",
+    "description": "RC4-40 (R2), LZW streams only, cut off before the encryption dictionary",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 964,
+    "sha256": "4196856b7c790dd173ae4035d2ca502d7b98afb75681eff96fe1be220a3d50d6"
+  },
+  {
     "file": "not-a-pdf.bin",
     "description": "Not a PDF at all",
     "kind": "error",

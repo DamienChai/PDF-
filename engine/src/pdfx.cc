@@ -894,6 +894,10 @@ namespace
     // One sequential pass over the input in windows of `step` bytes. Every position is examined
     // in a window that also holds `context` bytes before and after it, which is as far as the
     // scanner looks around a match. Memory use does not depend on the size of the file.
+    //
+    // Like qpdf's own recovery, the pass does not know where the data of a stream ends: an
+    // encrypted PDF that is attached without compression shows its traces too. That is intended:
+    // qpdf would rebuild the document from the objects of both files.
     class TraceScanner
     {
       public:
@@ -903,16 +907,19 @@ namespace
         {
         }
 
-        // Describes the first trace of encryption, or returns an empty string if there is none:
+        // Says why the file cannot be taken for an unencrypted one, or returns an empty string:
         //  - an /Encrypt entry (the trailer keyword is misspelt, or the cut is behind it);
         //  - an encryption dictionary of the standard security handler;
-        //  - a stream whose data cannot be what its first filter produces. This is what is left
-        //    when the cut also took the encryption dictionary, which most writers put last.
+        //  - streams whose data cannot be what their dictionaries announce. This is what is left
+        //    when the cut also took the encryption dictionary, which most writers put last. One
+        //    odd stream proves nothing, so the streams are counted: in an encrypted file
+        //    practically every one fails the test, in an unencrypted one practically none;
+        //  - no stream that could be tested at all: nothing then tells the two apart.
         std::string
         run()
         {
             std::vector<unsigned char> window(step + 2 * context);
-            for (uint64_t core = 0; core < size_; core += step) {
+            for (uint64_t core = 0; core < size_ && !decided(); core += step) {
                 uint64_t begin = core > context ? core - context : 0;
                 uint64_t end = std::min<uint64_t>(size_, core + step + context);
                 auto length = static_cast<size_t>(end - begin);
@@ -928,18 +935,34 @@ namespace
                 for (size_t i = first; i < last; ++i) {
                     char const* what = nullptr;
                     if (data_[i] == '/') {
-                        if (nameAt(i, "/Encrypt")) {
+                        if (nameAt(i, "/Encrypt") && encryptEntryAt(i)) {
                             what = "an /Encrypt entry";
                         } else if (nameAt(i, "/Standard") && encryptionDictionaryAt(i)) {
                             what = "an encryption dictionary";
                         }
-                    } else if (data_[i] == 's' && encryptedStreamAt(i)) {
-                        what = "stream data that does not match its filter";
+                    } else if (data_[i] == 's') {
+                        Stream stream;
+                        if (streamAt(i, stream)) {
+                            examine(stream, begin + stream.data);
+                        }
                     }
                     if (what != nullptr) {
-                        return std::string(what) + " at offset " + std::to_string(begin + i);
+                        return signs(std::string(what) + " at offset " + std::to_string(begin + i));
                     }
                 }
+            }
+            // Where filters say what the data has to look like, they decide; streams without a
+            // filter are a weaker witness and only heard when there is no other.
+            Tally const& tally = firm_.total() > 0 ? firm_ : loose_;
+            if (tally.total() == 0) {
+                return "nothing in the rest tells whether the file was encrypted; it cannot be "
+                       "processed safely without the trailer";
+            }
+            if (tally.bad > 0 && tally.bad >= tally.good) {
+                return signs(
+                    "stream data that does not match its filter at offset " +
+                    std::to_string(tally.first_bad) + ", in " + std::to_string(tally.bad) +
+                    " of " + std::to_string(tally.total()) + " streams");
             }
             return {};
         }
@@ -947,13 +970,71 @@ namespace
       private:
         static constexpr size_t step = size_t{1} << 20;
         static constexpr size_t context = size_t{16} << 10;
+        // Streams that do not match their filter, with none that does, after which the verdict
+        // is not going to change.
+        static constexpr uint64_t enough = 64;
+        // Bytes of a stream that are looked at, and the fewest of an unfiltered one that say
+        // anything.
+        static constexpr size_t sample = 256;
+        static constexpr size_t smallest_sample = 16;
 
-        enum class Leading { unknown, zlib, jpeg, jpeg2000, text };
+        bool
+        decided() const
+        {
+            return firm_.good == 0 && firm_.bad >= enough;
+        }
+
+        static std::string
+        signs(std::string const& what)
+        {
+            return "the rest shows signs of encryption (" + what +
+                "); it cannot be decrypted without the trailer";
+        }
+
+        enum class Leading { unknown, zlib, jpeg, jpeg2000, lzw, ascii, unfiltered };
+
+        struct Tally
+        {
+            uint64_t good{0};
+            uint64_t bad{0};
+            uint64_t first_bad{0};
+
+            uint64_t
+            total() const
+            {
+                return good + bad;
+            }
+
+            void
+            add(bool matches, uint64_t offset)
+            {
+                if (matches) {
+                    ++good;
+                } else if (bad++ == 0) {
+                    first_bad = offset;
+                }
+            }
+        };
+
+        // A stream object whose "stream" keyword is in the window.
+        struct Stream
+        {
+            size_t dict_begin{0};
+            size_t dict_end{0};
+            // Where the data starts, as a position in the window.
+            size_t data{0};
+        };
 
         static bool
         isSpace(unsigned char c)
         {
             return c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f' || c == '\0';
+        }
+
+        static bool
+        isDigit(unsigned char c)
+        {
+            return c >= '0' && c <= '9';
         }
 
         static bool
@@ -1009,6 +1090,37 @@ namespace
             return i;
         }
 
+        size_t
+        skipDigits(size_t i, size_t limit) const
+        {
+            while (i < limit && isDigit(data_[i])) {
+                ++i;
+            }
+            return i;
+        }
+
+        // `i` is at a number. True if "<number> <number> R" starts there.
+        bool
+        referenceAt(size_t i, size_t limit) const
+        {
+            size_t number_end = skipDigits(i, limit);
+            size_t generation = skipSpace(number_end, limit);
+            size_t generation_end = skipDigits(generation, limit);
+            size_t keyword = skipSpace(generation_end, limit);
+            return number_end > i && generation > number_end && generation_end > generation &&
+                keyword > generation_end && keyword < limit && data_[keyword] == 'R';
+        }
+
+        // `i` is at "/Encrypt". True if it is a dictionary entry: its value is a reference to the
+        // encryption dictionary, or that dictionary itself. The name alone may be part of a text.
+        bool
+        encryptEntryAt(size_t i) const
+        {
+            size_t limit = std::min(length_, i + 64);
+            size_t value = skipSpace(i + 8, limit);
+            return bytesAt(value, "<<") || referenceAt(value, limit);
+        }
+
         // `i` is at "/Standard". True if it is the value of /Filter in an object that also has
         // /O and /U, i.e. the encryption dictionary of the standard security handler.
         bool
@@ -1035,12 +1147,68 @@ namespace
             return hasName(from, to, "/O") && hasName(from, to, "/U");
         }
 
-        // What the data of a stream with the dictionary [from, to) has to begin with.
+        // `i` is at "stream". True if this is the keyword that starts the data of a stream
+        // object; `stream` then says where its dictionary and its data are.
+        bool
+        streamAt(size_t i, Stream& stream) const
+        {
+            if (!bytesAt(i, "stream") || (i >= 3 && bytesAt(i - 3, "end"))) {
+                return false;
+            }
+            stream.data = i + 6;
+            if (bytesAt(stream.data, "\r\n")) {
+                stream.data += 2;
+            } else if (bytesAt(stream.data, "\n") || bytesAt(stream.data, "\r")) {
+                stream.data += 1;
+            } else {
+                return false;
+            }
+            stream.dict_end = skipSpaceBackwards(i);
+            if (stream.dict_end < 2 || !bytesAt(stream.dict_end - 2, ">>")) {
+                return false;
+            }
+            // The dictionary starts right behind the "obj" keyword of this object.
+            size_t lowest = stream.dict_end > context ? stream.dict_end - context : 0;
+            for (size_t k = stream.dict_end; k >= lowest + 3; --k) {
+                if (bytesAt(k - 3, "obj")) {
+                    stream.dict_begin = skipSpace(k, stream.dict_end);
+                    if (bytesAt(stream.dict_begin, "<<")) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // The value of /Length where it is written into the dictionary itself.
+        bool
+        directLength(Stream const& stream, uint64_t& length) const
+        {
+            for (size_t i = stream.dict_begin; i < stream.dict_end; ++i) {
+                if (data_[i] != '/' || !nameAt(i, "/Length")) {
+                    continue;
+                }
+                size_t value = skipSpace(i + 7, stream.dict_end);
+                size_t value_end = skipDigits(value, stream.dict_end);
+                if (value_end == value || value_end - value > 15 ||
+                    referenceAt(value, stream.dict_end)) {
+                    return false;
+                }
+                length = 0;
+                for (size_t k = value; k < value_end; ++k) {
+                    length = length * 10 + (data_[k] - '0');
+                }
+                return true;
+            }
+            return false;
+        }
+
+        // What the data of a stream has to begin with, going by its dictionary.
         Leading
-        leadingBytesFor(size_t from, size_t to) const
+        leadingBytesFor(Stream const& stream) const
         {
             size_t names = 0;
-            for (size_t i = from; i < to; ++i) {
+            for (size_t i = stream.dict_begin; i < stream.dict_end; ++i) {
                 if (data_[i] != '/') {
                     continue;
                 }
@@ -1049,6 +1217,7 @@ namespace
                     continue;
                 }
                 // The first filter is the one the raw data is encoded with.
+                size_t to = stream.dict_end;
                 size_t value = skipSpace(i + 7, to);
                 if (value < to && data_[value] == '[') {
                     value = skipSpace(value + 1, to);
@@ -1067,81 +1236,141 @@ namespace
                 if (filter == "/JPXDecode") {
                     return Leading::jpeg2000;
                 }
+                if (filter == "/LZWDecode" || filter == "/LZW") {
+                    return Leading::lzw;
+                }
                 if (filter == "/ASCII85Decode" || filter == "/A85" ||
                     filter == "/ASCIIHexDecode" || filter == "/AHx") {
-                    return Leading::text;
+                    return Leading::ascii;
                 }
                 return Leading::unknown;
             }
-            // No filter. A dictionary with nothing but /Length belongs to a content stream or a
-            // CMap, which are text; anything else (images, fonts, colour profiles) may be binary.
-            return names == 1 && hasName(from, to, "/Length") ? Leading::text : Leading::unknown;
+            // No filter. A dictionary with nothing but /Length usually belongs to a content
+            // stream or a CMap; with other entries it may be an image, whose samples can be
+            // anything.
+            return names == 1 && hasName(stream.dict_begin, stream.dict_end, "/Length")
+                ? Leading::unfiltered
+                : Leading::unknown;
         }
 
-        // `i` is at "stream". True if this is the keyword that starts the data of a stream object
-        // and the data cannot be what the stream's first filter produces.
-        bool
-        encryptedStreamAt(size_t i) const
+        // The number of bytes of the stream's data that are in the window, up to `limit`.
+        size_t
+        dataInWindow(Stream const& stream, size_t limit) const
         {
-            if (!bytesAt(i, "stream") || (i >= 3 && bytesAt(i - 3, "end"))) {
-                return false;
+            size_t available = std::min(limit, length_ - stream.data);
+            uint64_t length = 0;
+            if (directLength(stream, length) && length < available) {
+                return static_cast<size_t>(length);
             }
-            size_t data = i + 6;
-            if (bytesAt(data, "\n")) {
-                data += 1;
-            } else if (bytesAt(data, "\r\n")) {
-                data += 2;
-            } else {
-                return false;
-            }
-            size_t dict_end = skipSpaceBackwards(i);
-            if (dict_end < 2 || !bytesAt(dict_end - 2, ">>")) {
-                return false;
-            }
-            // The dictionary starts right behind the "obj" keyword of this object.
-            size_t lowest = dict_end > context ? dict_end - context : 0;
-            size_t dict_begin = 0;
-            bool found = false;
-            for (size_t k = dict_end; k >= lowest + 3 && !found; --k) {
-                if (bytesAt(k - 3, "obj")) {
-                    dict_begin = skipSpace(k, dict_end);
-                    found = bytesAt(dict_begin, "<<");
-                }
-            }
-            if (!found) {
-                return false;
-            }
-            Leading leading = leadingBytesFor(dict_begin, dict_end);
+            std::string_view found(reinterpret_cast<char const*>(data_ + stream.data), available);
+            size_t at = found.find("endstream");
+            return at == std::string_view::npos ? available : at;
+        }
 
-            size_t available = length_ - data;
-            for (std::string_view empty: {"endstream", "\nendstream", "\r\nendstream", "\rendstream"}) {
-                if (bytesAt(data, empty)) {
-                    return false;
-                }
+        // True for bytes that pass for the output of a cipher: about every second one has its
+        // high bit set, control characters are as frequent as anything else, and no value comes
+        // up again and again. Text in any encoding, tables of numbers and the headers of file
+        // formats do not look like that.
+        static bool
+        looksRandom(unsigned char const* d, size_t n)
+        {
+            unsigned short seen[256] = {};
+            size_t high = 0;
+            size_t control = 0;
+            size_t most = 0;
+            for (size_t k = 0; k < n; ++k) {
+                unsigned char c = d[k];
+                high += c >> 7;
+                control += c < 0x20 && c != '\t' && c != '\n' && c != '\f' && c != '\r';
+                most = std::max<size_t>(most, ++seen[c]);
             }
-            unsigned char const* d = data_ + data;
+            return high * 4 >= n && high * 4 <= n * 3 && control * 32 >= n && most <= n / 8 + 2;
+        }
+
+        // True if the data begins like a file that is compressed in itself (an attachment a
+        // writer stored as it was): the one kind of unencrypted data that looks random.
+        static bool
+        isPackedFile(unsigned char const* d, size_t n)
+        {
+            static constexpr std::string_view signatures[] = {
+                "\x89PNG\r\n\x1a\n",
+                "\xff\xd8\xff",
+                "GIF8",
+                "PK\x03\x04",
+                "\x1f\x8b\x08",
+                "BZh",
+                "\xfd"
+                "7zXZ",
+                "7z\xbc\xaf\x27\x1c",
+                "Rar!\x1a\x07",
+                "\x28\xb5\x2f\xfd",
+            };
+            std::string_view data(reinterpret_cast<char const*>(d), n);
+            return std::any_of(std::begin(signatures), std::end(signatures), [&](auto signature) {
+                return data.substr(0, signature.size()) == signature;
+            });
+        }
+
+        // Compares the first bytes of a stream's data, which is at `offset` in the file, with
+        // what its dictionary announces, and counts the outcome. Streams that say nothing either
+        // way are passed over.
+        void
+        examine(Stream const& stream, uint64_t offset)
+        {
+            Leading leading = leadingBytesFor(stream);
+            if (leading == Leading::unknown) {
+                return;
+            }
+            size_t available = dataInWindow(stream, sample);
+            unsigned char const* d = data_ + stream.data;
+            // Empty, or nothing but white space: some writers leave such placeholders, whatever
+            // filter the dictionary names.
+            if (std::all_of(d, d + available, isSpace)) {
+                return;
+            }
             switch (leading) {
             case Leading::unknown:
-                return false;
+                return;
             case Leading::zlib:
                 // RFC 1950: deflate with a window of at most 32 KiB, and a header checksum.
-                return available >= 2 &&
-                    !((d[0] & 0x0f) == 8 && (d[0] >> 4) <= 7 && ((d[0] << 8) | d[1]) % 31 == 0);
-            case Leading::jpeg:
-                return available >= 2 && !(d[0] == 0xff && d[1] == 0xd8);
-            case Leading::jpeg2000:
-                return available >= 4 && memcmp(d, "\x00\x00\x00\x0c", 4) != 0 &&
-                    memcmp(d, "\xff\x4f\xff\x51", 4) != 0;
-            case Leading::text:
-                for (size_t k = 0; k < std::min<size_t>(available, 8); ++k) {
-                    if (!(d[k] == '\t' || d[k] == '\n' || d[k] == '\f' || d[k] == '\r' ||
-                          (d[k] >= 0x20 && d[k] <= 0x7e))) {
-                        return true;
-                    }
+                if (available >= 2) {
+                    firm_.add(
+                        (d[0] & 0x0f) == 8 && (d[0] >> 4) <= 7 && ((d[0] << 8) | d[1]) % 31 == 0,
+                        offset);
                 }
-                return false;
+                return;
+            case Leading::jpeg:
+                if (available >= 2) {
+                    firm_.add(d[0] == 0xff && d[1] == 0xd8, offset);
+                }
+                return;
+            case Leading::jpeg2000:
+                if (available >= 4) {
+                    firm_.add(
+                        memcmp(d, "\x00\x00\x00\x0c", 4) == 0 || memcmp(d, "\xff\x4f\xff\x51", 4) == 0,
+                        offset);
+                }
+                return;
+            case Leading::lzw:
+                // The first nine-bit code clears the table (256): 1000 0000 0.
+                if (available >= 2) {
+                    firm_.add(d[0] == 0x80 && (d[1] & 0x80) == 0, offset);
+                }
+                return;
+            case Leading::ascii:
+                firm_.add(
+                    std::all_of(d, d + std::min<size_t>(available, 8), [](unsigned char c) {
+                        return c == '\t' || c == '\n' || c == '\f' || c == '\r' ||
+                            (c >= 0x20 && c <= 0x7e);
+                    }),
+                    offset);
+                return;
+            case Leading::unfiltered:
+                if (available >= smallest_sample) {
+                    loose_.add(isPackedFile(d, available) || !looksRandom(d, available), offset);
+                }
+                return;
             }
-            return false;
         }
 
         JsInputSource source_;
@@ -1149,6 +1378,9 @@ namespace
         unsigned char const* data_{nullptr};
         size_t length_{0};
         bool at_end_{false};
+        // Streams whose filter says what their data begins with, and streams without a filter.
+        Tally firm_;
+        Tally loose_;
     };
 
     Document
@@ -1188,10 +1420,7 @@ namespace
         if (doc.access == Access::none && trailerWasLost(doc.warnings)) {
             std::string trace = TraceScanner(cache).run();
             if (!trace.empty()) {
-                throw EngineError{
-                    "damaged",
-                    "the trailer is lost and the rest shows signs of encryption (" + trace +
-                        "); it cannot be decrypted without the trailer"};
+                throw EngineError{"damaged", "the trailer is lost and " + trace};
             }
         }
         return doc;

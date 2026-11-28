@@ -11,6 +11,11 @@
  * entry (Chromium: 256 MiB). The page puts the slices together again; no slice is ever copied
  * into memory for that.
  *
+ * The files of one share are a batch, and a batch changes hands as a whole: the worker marks it
+ * complete when its last file is parked, and until then no page touches it. A page that looks
+ * while a large share is still being written therefore takes nothing of it, rather than the
+ * files that happen to be finished.
+ *
  * This module is shared by the service worker and the page and must not touch `window` or `self`.
  */
 
@@ -29,9 +34,9 @@ export const SHARE_SOURCE_VALUE = 'share-target';
 export const SHARE_LOST_PARAM = 'lost';
 export const SHARE_LOST_ALL = 'all';
 
-export const STASH_CACHE = 'pdfkey-incoming-v2';
+export const STASH_CACHE = 'pdfkey-incoming-v3';
 /** Caches of earlier layouts; whatever is left in them is of no use to this version. */
-const RETIRED_STASH_CACHES = ['pdfkey-incoming-v1'];
+const RETIRED_STASH_CACHES = ['pdfkey-incoming-v1', 'pdfkey-incoming-v2'];
 /** Size of the slices a file is parked in: far below every browser's limit for one entry. */
 export const STASH_SLICE_BYTES = 64 * 1024 * 1024;
 /**
@@ -47,17 +52,27 @@ const HEADER_RECEIVED = 'X-PDFKey-Received';
 /** Number of slices the file consists of; on every one of them. */
 const HEADER_SLICES = 'X-PDFKey-Slices';
 
+/** Last part of the entry that marks a batch as complete. */
+const COMPLETE_MARK = 'complete';
+
 interface EntryKey {
   batch: string;
-  /** Position of the file in its batch. */
-  index: number;
-  /** Position of the slice in its file. */
-  slice: number;
+  /** The slice of a file the entry holds; null for the entry that marks the batch complete. */
+  part: {
+    /** Position of the file in its batch. */
+    index: number;
+    /** Position of the slice in its file. */
+    slice: number;
+  } | null;
 }
 
 function parseEntryUrl(url: string): EntryKey | null {
-  const match = /\/__pdfkey-incoming__\/([^/]+)\/(\d+)\/(\d+)$/.exec(new URL(url).pathname);
-  return match ? { batch: match[1]!, index: Number(match[2]), slice: Number(match[3]) } : null;
+  const match = /\/__pdfkey-incoming__\/([^/]+)\/(?:(\d+)\/(\d+)|complete)$/.exec(
+    new URL(url).pathname,
+  );
+  if (!match) return null;
+  const part = match[2] === undefined ? null : { index: Number(match[2]), slice: Number(match[3]) };
+  return { batch: match[1]!, part };
 }
 
 function randomId(): string {
@@ -116,6 +131,7 @@ export async function stashFiles(
   const cache = await storage.open(STASH_CACHE);
   // Zero-padded time first: batches sort in arrival order.
   const batch = `${String(now).padStart(15, '0')}-${randomId()}`;
+  const parked: string[] = [];
   // One after the other: several large files written at once would only compete for the disk.
   for (const [index, file] of files.entries()) {
     const slices = Math.max(1, Math.ceil(file.size / sliceBytes));
@@ -141,11 +157,24 @@ export async function stashFiles(
         );
       }
       report.stored++;
+      parked.push(...written);
     } catch {
       report.failed++;
       // Half a file is of no use to anybody.
       await Promise.all(written.map((url) => cache.delete(url).catch(() => false)));
     }
+  }
+  if (report.stored === 0) return report;
+  try {
+    // Last of all: from now on the batch is there to be collected.
+    await cache.put(
+      new URL(`${ENTRY_PREFIX}${batch}/${COMPLETE_MARK}`, scope).href,
+      new Response(null, { headers: { [HEADER_RECEIVED]: String(now) } }),
+    );
+  } catch {
+    // Without its mark nobody would ever collect the batch.
+    await Promise.all(parked.map((url) => cache.delete(url).catch(() => false)));
+    return { stored: 0, failed: files.length };
   }
   return report;
 }
@@ -171,11 +200,19 @@ interface StashedSlice {
   slice: number;
 }
 
+interface StashedBatch {
+  /** The entry that marks the batch complete, once the worker has written it. */
+  mark: Request | null;
+  /** Position in the batch → the slices of that file. */
+  files: Map<number, StashedSlice[]>;
+}
+
 /**
- * Removes and returns all stashed batches that belong to `scope`, oldest first. Stale entries are
- * deleted without being returned, and a file whose slices are not all there yet (the worker is
- * still writing it) is left alone. Safe to call from several tabs at once: a file is handed to
- * the one caller who manages to delete its first slice, so every file is delivered exactly once.
+ * Removes and returns all complete batches that belong to `scope`, oldest first. Stale entries
+ * are deleted without being returned, and a batch the worker is still writing is left alone,
+ * whatever of it is there already. Safe to call from several tabs at once: a batch is handed to
+ * the one caller who manages to delete its mark, so every share arrives exactly once and in
+ * one piece.
  */
 export async function takeStashedFiles(
   storage: CacheStorage,
@@ -185,8 +222,7 @@ export async function takeStashedFiles(
   if (!(await storage.has(STASH_CACHE))) return [];
   const cache = await storage.open(STASH_CACHE);
   const prefix = new URL(ENTRY_PREFIX, scope).href;
-  /** Batch → position in the batch → the slices of that file. */
-  const stashed = new Map<string, Map<number, StashedSlice[]>>();
+  const stashed = new Map<string, StashedBatch>();
 
   for (const request of await cache.keys()) {
     if (!request.url.startsWith(prefix)) continue;
@@ -196,35 +232,45 @@ export async function takeStashedFiles(
       await cache.delete(request);
       continue;
     }
-    let files = stashed.get(key.batch);
-    if (!files) stashed.set(key.batch, (files = new Map()));
-    const slices = files.get(key.index);
-    const found = { request, response, slice: key.slice };
+    let batch = stashed.get(key.batch);
+    if (!batch) stashed.set(key.batch, (batch = { mark: null, files: new Map() }));
+    if (!key.part) {
+      batch.mark = request;
+      continue;
+    }
+    const slices = batch.files.get(key.part.index);
+    const found = { request, response, slice: key.part.slice };
     if (slices) slices.push(found);
-    else files.set(key.index, [found]);
+    else batch.files.set(key.part.index, [found]);
   }
 
   const batches: File[][] = [];
-  for (const batch of [...stashed.keys()].sort()) {
-    const files: File[] = [];
-    const positions = stashed.get(batch)!;
+  for (const name of [...stashed.keys()].sort()) {
+    const { mark, files: positions } = stashed.get(name)!;
+    if (!mark) continue;
+    const whole: { slices: StashedSlice[]; blobs: Blob[] }[] = [];
     for (const index of [...positions.keys()].sort((a, b) => a - b)) {
       const slices = positions.get(index)!.sort((a, b) => a.slice - b.slice);
-      const first = slices[0]!;
-      const expected = Number(first.response.headers.get(HEADER_SLICES) ?? 1);
+      const expected = Number(slices[0]!.response.headers.get(HEADER_SLICES) ?? 1);
       if (slices.length !== expected || slices.some((entry, at) => entry.slice !== at)) continue;
-      // Read first, claim second: if the tab dies in between, the file is still there for another.
-      const blobs = await Promise.all(slices.map((entry) => entry.response.blob()));
-      if (!(await cache.delete(first.request))) continue;
-      await Promise.all(slices.slice(1).map((entry) => cache.delete(entry.request)));
-      const modified = Number(first.response.headers.get(HEADER_MODIFIED));
-      files.push(
-        new File(blobs, decodeName(first.response.headers.get(HEADER_NAME)), {
-          type: first.response.headers.get('Content-Type') ?? '',
-          lastModified: Number.isFinite(modified) && modified > 0 ? modified : now,
-        }),
-      );
+      whole.push({
+        slices,
+        blobs: await Promise.all(slices.map((entry) => entry.response.blob())),
+      });
     }
+    // Read first, claim second: if the tab dies in between, the batch is still there for another.
+    if (!(await cache.delete(mark))) continue;
+    await Promise.all(
+      [...positions.values()].flat().map((entry) => cache.delete(entry.request).catch(() => false)),
+    );
+    const files = whole.map(({ slices, blobs }) => {
+      const { headers } = slices[0]!.response;
+      const modified = Number(headers.get(HEADER_MODIFIED));
+      return new File(blobs, decodeName(headers.get(HEADER_NAME)), {
+        type: headers.get('Content-Type') ?? '',
+        lastModified: Number.isFinite(modified) && modified > 0 ? modified : now,
+      });
+    });
     if (files.length > 0) batches.push(files);
   }
   return batches;
@@ -232,7 +278,8 @@ export async function takeStashedFiles(
 
 /**
  * Deletes stale entries of every scope, and the caches of earlier layouts. Called by the service
- * worker when it starts up.
+ * worker when a version takes over; between versions a page drops the stale entries of its own
+ * scope each time it looks for shared files, which is every time the app is opened.
  */
 export async function purgeStaleStash(storage: CacheStorage, now = Date.now()): Promise<void> {
   await Promise.all(RETIRED_STASH_CACHES.map((name) => storage.delete(name)));

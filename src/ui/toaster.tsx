@@ -7,6 +7,7 @@ import { useEffect } from 'preact/hooks';
 import { t } from '../i18n';
 import { toasts } from '../state';
 import { Icon, type IconName } from './icons';
+import { Prose } from './prose';
 
 const TONE_ICON: Readonly<Record<string, IconName | undefined>> = {
   success: 'check',
@@ -37,7 +38,9 @@ export function Toaster() {
           onFocusOut={() => toasts.resume(toast.id)}
         >
           {icon && <Icon name={icon} size="sm" class="toast__icon" />}
-          <p class="toast__text">{t(toast.message)}</p>
+          <p class="toast__text">
+            <Prose text={t(toast.message)} />
+          </p>
           {toast.action && (
             <button type="button" class="toast__action" onClick={() => toasts.runAction(toast.id)}>
               {t(toast.action.label)}

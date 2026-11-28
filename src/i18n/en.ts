@@ -60,6 +60,7 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'entry.note.noRestrictions': 'Nothing is restricted',
   'entry.note.willEncrypt': 'Will be encrypted',
   'entry.note.willReplace': 'Protection will be replaced',
+  'entry.note.willRelock': 'Will be locked again with the new settings',
   'entry.note.needsCurrentPassword': 'Enter the current password to change the protection',
   'entry.password.label': 'Password',
   'entry.password.placeholder': 'Password for this file',
@@ -192,7 +193,8 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'strength.4': 'Very strong',
   'strength.hint.too-short': 'Too short: use at least 8 characters',
   'strength.hint.common-password': 'This is a common password and easy to guess',
-  'strength.hint.name-or-word': 'Names and words are easy to guess, with or without digits',
+  'strength.hint.name-or-word':
+    'Names and words are easy to guess, also with digits and symbols added',
   'strength.hint.repeated-characters': 'Avoid repeated characters',
   'strength.hint.sequence': 'Avoid sequences and keyboard patterns such as 1234 or qwerty',
   'strength.hint.single-character-class': 'Mix upper and lower case letters, digits and symbols',
@@ -284,7 +286,7 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
     'Works offline once installed, and other apps can share PDFs straight to it.',
   'settings.install.installed': 'Installed',
   'settings.install.hint':
-    'No install button here? Use “Install app” or “Add to Home Screen” in your browser’s menu.',
+    'No install button here? If your browser can install apps, use “Install app” or “Add to Home Screen” in its menu.',
 
   // --- About -----------------------------------------------------------------------------------
   'about.title': 'About',
@@ -336,6 +338,8 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   },
   'toast.folderEmpty': 'There are no PDFs in that folder',
   'toast.folderLimit': 'That folder holds too much: only some of its PDFs were added',
+  'toast.folderTooLarge':
+    'That folder holds too much to search, and no PDF was found. Drop the PDFs themselves.',
   'toast.folderUnreadable': 'The folder could not be read. Drop the files themselves.',
   'toast.engineUnavailable': 'The PDF engine could not be loaded',
   'toast.retry': 'Try again',

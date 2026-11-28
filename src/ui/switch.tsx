@@ -2,6 +2,7 @@
 import type { ComponentChildren } from 'preact';
 import { useId } from 'preact/hooks';
 import { Icon } from './icons';
+import { Prose } from './prose';
 
 export interface SwitchProps {
   checked: boolean;
@@ -53,7 +54,7 @@ export function SwitchRow({ title, description, checked, onChange }: SwitchRowPr
         </span>
         {description && (
           <span class="row__desc" id={`${id}-d`}>
-            {description}
+            <Prose text={description} />
           </span>
         )}
       </div>

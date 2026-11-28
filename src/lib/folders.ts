@@ -22,7 +22,7 @@ export interface FolderLimits {
 export const FOLDER_LIMITS: FolderLimits = { maxFiles: 500, maxEntries: 10_000, maxDepth: 8 };
 
 export interface FolderContents {
-  /** The PDFs: folder by folder, each in the order of its names. */
+  /** The PDFs: folder by folder, a folder's own before those of its subfolders, by name. */
   files: File[];
   /** A limit was reached; there may be more PDFs than `files`. */
   truncated: boolean;
@@ -95,25 +95,28 @@ export async function readFolders(
     const entries = listed.entries
       .filter((entry) => !isHidden(entry.name))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    // The folder's own PDFs first: whether they are found must not depend on how much its
+    // subfolders hold.
     for (const entry of entries) {
-      if (full) return;
-      if (entry.isDirectory) {
-        if (depth >= limits.maxDepth) result.truncated = true;
-        else await walk(entry as FileSystemDirectoryEntry, depth + 1);
-      } else if (entry.isFile && hasPdfName(entry.name)) {
-        if (result.files.length >= limits.maxFiles) {
-          full = true;
-          break;
-        }
-        try {
-          result.files.push(await fileOf(entry as FileSystemFileEntry));
-        } catch {
-          // Deleted or locked since the folder was listed.
-          result.unreadable = true;
-        }
+      if (!entry.isFile || !hasPdfName(entry.name)) continue;
+      if (result.files.length >= limits.maxFiles) {
+        full = true;
+        break;
+      }
+      try {
+        result.files.push(await fileOf(entry as FileSystemFileEntry));
+      } catch {
+        // Deleted or locked since the folder was listed.
+        result.unreadable = true;
       }
     }
     if (listed.more) full = true;
+    for (const entry of entries) {
+      if (full) break;
+      if (!entry.isDirectory) continue;
+      if (depth >= limits.maxDepth) result.truncated = true;
+      else await walk(entry as FileSystemDirectoryEntry, depth + 1);
+    }
     if (full) result.truncated = true;
   }
 

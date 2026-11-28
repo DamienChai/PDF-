@@ -18,6 +18,7 @@ import {
 } from '../state';
 import { Icon } from './icons';
 import { literalEntry } from './password-input';
+import { Prose } from './prose';
 import { Segmented } from './segmented';
 import { Sheet } from './sheet';
 import { SwitchRow } from './switch';
@@ -92,7 +93,9 @@ function About() {
         </div>
         <p class="notice rows__note">
           <Icon name="shield" size="sm" />
-          {t('about.privacy')}
+          <span>
+            <Prose text={t('about.privacy')} />
+          </span>
         </p>
         <details class="licenses">
           <summary class="row licenses__summary">
@@ -100,7 +103,9 @@ function About() {
             <Icon name="chevron-down" />
           </summary>
           <div class="licenses__body">
-            <p class="hint">{t('about.licenses.app')}</p>
+            <p class="hint">
+              <Prose text={t('about.licenses.app')} />
+            </p>
             <p class="hint">{t('about.licenses.thirdParty')}</p>
             <ul class="licenses__list">
               {OPEN_SOURCE_COMPONENTS.map((component) => (
@@ -113,7 +118,9 @@ function About() {
                 </li>
               ))}
             </ul>
-            <p class="hint">{t('about.licenses.ijg')}</p>
+            <p class="hint">
+              <Prose text={t('about.licenses.ijg')} />
+            </p>
             {/* A new tab or window: the list of files stays where it is. */}
             <a
               class="link-btn licenses__notices"
@@ -137,7 +144,11 @@ function Install() {
       <div class="row__text">
         <span class="row__title">{t('settings.install')}</span>
         <span class="row__desc">
-          {t(state === 'unavailable' ? 'settings.install.hint' : 'settings.install.description')}
+          <Prose
+            text={t(
+              state === 'unavailable' ? 'settings.install.hint' : 'settings.install.description',
+            )}
+          />
         </span>
       </div>
       {state === 'available' && (

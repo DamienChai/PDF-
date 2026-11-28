@@ -164,8 +164,11 @@ export function createIntake(env: IntakeEnvironment): Intake {
   ): Promise<void> {
     const found = await readFolders(folders, env.folderLimits ?? FOLDER_LIMITS);
     if (found.files.length > 0) env.addFiles(found.files, source);
-    if (found.truncated) env.notify?.({ key: 'toast.folderLimit' }, 'neutral');
-    else if (found.files.length > 0) return;
+    if (found.truncated) {
+      // Nothing was found within the limits: "only some were added" would not be true.
+      if (found.files.length > 0) env.notify?.({ key: 'toast.folderLimit' }, 'neutral');
+      else env.notify?.({ key: 'toast.folderTooLarge' }, 'error');
+    } else if (found.files.length > 0) return;
     else if (found.unreadable) env.notify?.({ key: 'toast.folderUnreadable' }, 'error');
     else env.notify?.({ key: 'toast.folderEmpty' }, 'error');
   }

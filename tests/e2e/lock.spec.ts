@@ -427,6 +427,44 @@ test.describe('one password for every result in the list', () => {
     );
   });
 
+  test('a finished file is not handed out while the form holds another password', async ({
+    app,
+  }) => {
+    const waiting = fixture('aes-256-r6.pdf');
+    await startLocking(app, 'plain.pdf');
+    await fillForm(app, FIRST);
+    await app.lockConfirmation.press('Enter');
+    await app.expectState('plain.pdf', 'done', 'lock');
+
+    // A second file brings the form back; it holds what the result was made with.
+    await app.addFixtures(waiting.file);
+    await app.expectState(waiting.file, 'encrypted', 'lock');
+    const save = app.card('plain.pdf').getByRole('button', { name: app.t('entry.save') });
+    await expect(app.lockPassword).toHaveValue(FIRST);
+    await expect(save).toBeVisible();
+    await expect(app.card('plain.pdf')).toContainText('plain_locked.pdf');
+
+    // Another password in the form: the result it does not open is withheld, and says why. The
+    // note stands where the buttons were, so nothing moves under the field that is typed into.
+    const height = (await app.card('plain.pdf').boundingBox())!.height;
+    await fillForm(app, SECOND);
+    await expect(app.card('plain.pdf')).toContainText(app.t('entry.note.willRelock'));
+    await expect(app.card('plain.pdf')).toContainText(app.t('chip.locked'));
+    await expect(app.card('plain.pdf').getByRole('button')).toHaveCount(1); // its menu
+    expect((await app.card('plain.pdf').boundingBox())!.height).toBe(height);
+    await expect(app.page.locator('.listhead__summary')).toContainText(
+      app.t('list.summary.relock', { count: 1 }),
+    );
+
+    // The first password again: on offer as before, and that is the password that opens it.
+    await fillForm(app, FIRST);
+    await expect(app.card('plain.pdf')).not.toContainText(app.t('entry.note.willRelock'));
+    const saved = await app.download(() => save.click());
+    expect(saved.name).toBe('plain_locked.pdf');
+    expect(await inspectPdf(saved.bytes, FIRST)).toMatchObject({ access: 'both' });
+    expect(await inspectPdf(saved.bytes, SECOND)).toMatchObject({ access: 'locked' });
+  });
+
   test('a file added after a run, same password: the finished file is left alone', async ({
     app,
   }) => {

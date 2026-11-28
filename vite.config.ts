@@ -161,13 +161,67 @@ const pwa = VitePWA({
         purpose: 'monochrome',
       },
     ],
-    // SCREENSHOTS: add the store-style screenshots here once they exist, e.g.
-    //   { src: 'screenshots/phone-unlock.png', sizes: '1080x2400', type: 'image/png',
-    //     form_factor: 'narrow', label: 'Unlock a PDF' },
-    //   { src: 'screenshots/desktop.png', sizes: '1920x1200', type: 'image/png',
-    //     form_factor: 'wide', label: 'PDF Key on the desktop' },
-    // Files go to public/screenshots/ (excluded from the offline cache above).
-    screenshots: [],
+    // The richer install dialog of Chrome: `narrow` pictures on Android, `wide` ones on desktop.
+    // scripts/generate-screenshots.mjs renders them into public/screenshots/ (kept out of the
+    // offline cache above) and checks sizes and form factors against this list.
+    screenshots: [
+      {
+        src: 'screenshots/phone-unlock.png',
+        sizes: '1082x2402',
+        type: 'image/png',
+        form_factor: 'narrow',
+        label: 'A protected PDF and the field for its password',
+      },
+      {
+        src: 'screenshots/phone-done.png',
+        sizes: '1082x2402',
+        type: 'image/png',
+        form_factor: 'narrow',
+        label: 'The unlocked copy, ready to save or share',
+      },
+      {
+        src: 'screenshots/phone-lock.png',
+        sizes: '1082x2402',
+        type: 'image/png',
+        form_factor: 'narrow',
+        label: 'Protecting a PDF with a new password',
+      },
+      {
+        src: 'screenshots/phone-batch.png',
+        sizes: '1082x2402',
+        type: 'image/png',
+        form_factor: 'narrow',
+        label: 'Several PDFs unlocked with one password',
+      },
+      {
+        src: 'screenshots/desktop-unlock.png',
+        sizes: '1440x900',
+        type: 'image/png',
+        form_factor: 'wide',
+        label: 'Protected PDFs and the field for their password',
+      },
+      {
+        src: 'screenshots/desktop-done.png',
+        sizes: '1440x900',
+        type: 'image/png',
+        form_factor: 'wide',
+        label: 'Unlocked copies, ready to save one by one, into a folder or as a ZIP',
+      },
+      {
+        src: 'screenshots/desktop-lock.png',
+        sizes: '1440x900',
+        type: 'image/png',
+        form_factor: 'wide',
+        label: 'Protecting PDFs with AES-256, a permissions password and restrictions',
+      },
+      {
+        src: 'screenshots/desktop-batch.png',
+        sizes: '1440x900',
+        type: 'image/png',
+        form_factor: 'wide',
+        label: 'A list of PDFs after one password: unlocked, not encrypted, wrong password',
+      },
+    ],
     shortcuts: [
       {
         name: 'Unlock a PDF',

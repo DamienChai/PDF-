@@ -89,16 +89,34 @@ unencrypted, `openDocument` reads the raw input once more (`TraceScanner`: one s
 1 MiB windows through the block cache, memory independent of the file size) and fails with
 `damaged` if it finds
 
-- an `/Encrypt` entry,
-- an encryption dictionary (`/Filter /Standard` in an object that also has `/O` and `/U`), or
-- a stream whose first bytes cannot be what its first filter produces: no zlib header under
-  `/FlateDecode`, no JPEG or JPEG 2000 signature, bytes that are not text under an ASCII filter
-  or in a stream whose dictionary has nothing but `/Length` (a content stream).
+- an `/Encrypt` entry: the name followed by a reference or a dictionary, as in a trailer (the
+  name alone may be part of a text),
+- an encryption dictionary (`/Filter /Standard` in an object that also has `/O` and `/U`),
+- streams whose first bytes cannot be what their dictionaries announce, or
+- no stream that could be tested at all.
 
-The last one matters most: writers put the encryption dictionary at the end, so a cut usually
-takes it along with the trailer, and ciphertext is all that gives the file away. An unencrypted
-file with the same damage shows none of the three and is repaired as before; its made-up trailer
-gets a `/Size` entry before writing, which `QPDFWriter` would otherwise leave out.
+The third one matters most: writers put the encryption dictionary at the end, so a cut usually
+takes it along with the trailer, and ciphertext is all that gives the file away. One odd stream
+proves nothing (writers leave placeholders, files get damaged in other ways too), so the streams
+are counted. A stream with a telling first filter is a firm witness: a zlib header under
+`/FlateDecode`, the JPEG or JPEG 2000 signature, the clear-table code under `/LZWDecode`,
+printable characters under an ASCII filter. In an encrypted file practically every one of them
+fails (a ciphertext passes the zlib test once in about a thousand times), in an unencrypted file
+practically none. The file is refused when the streams that fail are at least as many as those
+that pass. Only when no stream has such a filter are the unfiltered ones heard whose dictionary
+has nothing but `/Length` (content streams, CMaps, scripts): 16 to 256 bytes of data count as
+ciphertext if they look random (about half of the bytes with the high bit set, control characters
+among them, no value that keeps coming back) and do not begin with the signature of a file that
+is compressed in itself. Text in any encoding, tables of numbers and bitmaps do not look like
+that. Streams that are empty or hold only white space say nothing, and neither do images without
+a filter or streams under `/CCITTFaxDecode`, `/JBIG2Decode` and `/RunLengthDecode`.
+
+A file in which nothing could be tested (it was cut off before its first page content, or has
+only streams of the kinds just named) is refused as well: nothing tells whether its strings are
+ciphertext, and what would be rebuilt from it has no page content anyway.
+
+An unencrypted file with the same damage passes all of this and is repaired as before; its
+made-up trailer gets a `/Size` entry before writing, which `QPDFWriter` would otherwise leave out.
 
 ### Passwords
 
@@ -162,9 +180,9 @@ committed. `.github/workflows/engine.yml` (manual trigger) rebuilds inside
 | `-O3 -flto`     |   1 179 948 | 407 090 | 4.4–4.5 s |
 
 LTO costs 14 % in size and gains nothing; `-Os` saves 57 KB over the wire for about 10 % of the
-throughput. The table was measured before the lost-trailer check existed, which added 5 846
-bytes. Shipped now: 1 041 015 bytes raw, 377 725 gzip, 290 667 brotli; glue 9 623 bytes
-(3 517 gzip).
+throughput. The table was measured before the lost-trailer check existed, which adds 11 234
+bytes. Shipped now: 1 046 403 bytes raw, 378 874 gzip, 292 258 brotli; glue 9 623 bytes
+(3 526 gzip).
 
 Where the time goes (profile of the 500 MB decrypt): 67 % in qpdf's table-based AES, 21 % in
 qpdf's per-16-byte-block pipeline plumbing, 5 % in the two JavaScript callbacks, the rest
@@ -173,7 +191,7 @@ elsewhere. A faster AES would need a SIMD implementation registered as a qpdf cr
 ## Checks
 
 ```sh
-npx vitest run src/engine                  # 718 tests, about 15 s
+npx vitest run src/engine                  # 739 tests, about 15 s
 python3 tests/fixtures/cross_check.py      # pikepdf + pypdf + native qpdf on 224 engine outputs
 node engine/browser-check/check.mjs        # 42 checks in Chromium
 node engine/bench.mjs                      # 100 MB and 500 MB
@@ -241,10 +259,13 @@ connect-src 'self'`. Without `'wasm-unsafe-eval'` every call rejects with `engin
   says 40. `keyBits` reports what qpdf uses.
 - Only the standard password security handler is supported; certificate-encrypted documents are
   reported as `unsupported-encryption`.
-- An encrypted file that is cut off before its first stream begins (the first few hundred bytes
-  to few kilobytes: catalog and page dictionaries only) carries no trace of encryption and is
-  rebuilt like an unencrypted file cut at the same place: empty pages, no ciphertext.
-- The lost-trailer check errs on the side of refusing: an unencrypted file that lost its trailer
-  and embeds an encrypted PDF without compression, or carries the name `/Encrypt` in clear text,
-  is reported as `damaged`.
+- The lost-trailer check errs on the side of refusing. Reported as `damaged` although they are
+  not encrypted: a file that lost its trailer before its first page content began (nothing in
+  it can be tested, see above); one that embeds an encrypted PDF without compression (qpdf
+  would rebuild the document from the objects of both); one whose text spells out a complete
+  `/Encrypt 12 0 R` entry or encryption dictionary; one in which the streams that do not begin
+  the way their filter requires are at least as many as those that do.
+- The other way round, an encrypted file that lost its trailer is taken for an unencrypted one
+  only if its ciphertext passes the tests: with a single `/FlateDecode` stream left that happens
+  about once in a thousand files, with two streams once in a million.
 - A zero byte cannot be part of a password (qpdf's API takes C strings).

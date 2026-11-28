@@ -9,6 +9,7 @@ import type { PrintPermission } from '../engine/types';
 import { afterRender, focusQuietly } from './focus';
 import { Icon } from './icons';
 import { PasswordInput } from './password-input';
+import { Prose } from './prose';
 import { Segmented } from './segmented';
 import { SwitchRow } from './switch';
 
@@ -54,7 +55,11 @@ function StrengthMeter() {
           {t(strength.label)}
         </span>
       </div>
-      {hint && <p class="hint">{t(hint)}</p>}
+      {hint && (
+        <p class="hint">
+          <Prose text={t(hint)} />
+        </p>
+      )}
     </div>
   );
 }
@@ -106,7 +111,9 @@ function AdvancedOptions() {
                   )}
                 </span>
               </span>
-              <span class="choice__desc">{t(lockAlgorithmDescription(option))}</span>
+              <span class="choice__desc">
+                <Prose text={t(lockAlgorithmDescription(option))} />
+              </span>
             </label>
           ))}
         </div>
@@ -182,7 +189,9 @@ function AdvancedOptions() {
                   />
                 ))}
               </div>
-              <p class="hint">{t('lock.permissions.note')}</p>
+              <p class="hint">
+                <Prose text={t('lock.permissions.note')} />
+              </p>
             </fieldset>
           </div>
         )}
@@ -238,14 +247,16 @@ export function LockForm({ disabled }: { disabled: boolean }) {
           <FieldError id={`${id}-password-error`} error={errors.password} />
           {hint && !errors.password && (
             <p class="hint" id={`${id}-password-hint`}>
-              {t(hint)}
+              <Prose text={t(hint)} />
             </p>
           )}
           <StrengthMeter />
           {generated && (
             <p class="notice notice--boxed notice--info" role="status">
               <Icon name="info" size="sm" />
-              {t('lock.generated')}
+              <span>
+                <Prose text={t('lock.generated')} />
+              </span>
             </p>
           )}
           <div class="lockform__tools">
@@ -355,20 +366,26 @@ export function LockResult() {
             >
               <Icon name={revealed ? 'eye-off' : 'eye'} />
             </button>
+          </div>
+          {/* Under the field, as in the form: beside the eye it would take the room that the
+              last characters of a generated password need on a narrow phone. */}
+          <div class="lockform__tools">
             <button
               type="button"
-              class="input__action"
-              aria-label={t('lock.copy')}
+              class="btn btn--secondary btn--sm"
               onClick={() => void jobs.copyLockPassword()}
             >
-              <Icon name="copy" />
+              <Icon name="copy" size="sm" />
+              {t('lock.copy')}
             </button>
           </div>
         </div>
       )}
       <p class="notice notice--warning">
         <Icon name="warning" size="sm" />
-        {t('lock.warning')}
+        <span>
+          <Prose text={t('lock.warning')} />
+        </span>
       </p>
     </div>
   );

@@ -183,6 +183,69 @@ describe('estimateStrength', () => {
     );
   });
 
+  it('is not fooled by a separator between the word and the digits, or by digits in front', () => {
+    const decorated = [
+      'Company@2025',
+      'Company#2025',
+      'Company_2025',
+      'Company!2025',
+      'company.2025',
+      'Tencent@2024',
+      'January@2025',
+      'Spring@2025',
+      'China@2024',
+      'Monday@123',
+      'Holiday-2024!',
+      '2025Company',
+      '123holiday',
+      '2024Holiday!',
+    ];
+    for (const password of decorated) {
+      const estimate = estimateStrength(password);
+      expect(estimate.score, password).toBeLessThanOrEqual(1);
+      expect(estimate.hints, password).toContain('name-or-word');
+    }
+    // The separator is worth a little, not a character chosen at random.
+    const plain = estimateStrength('Company2025').bits;
+    const separated = estimateStrength('Company@2025').bits;
+    expect(separated).toBeGreaterThan(plain);
+    expect(separated).toBeLessThan(plain + 5);
+  });
+
+  it('sees a word through a letter or two replaced by look-alikes', () => {
+    for (const password of ['Tr0ub4dor&3', 'Pass@word1', 'h0liday99', 'El3phant7!']) {
+      const estimate = estimateStrength(password);
+      expect(estimate.score, password).toBeLessThanOrEqual(1);
+      expect(estimate.hints, password).toContain('name-or-word');
+    }
+  });
+
+  it('sees a pinyin name through a separator between its syllables', () => {
+    for (const password of ['zhang-wei-1990', 'Zhang.Wei1990', 'zhang_wei88', 'Wang-Xiao-Ming']) {
+      const estimate = estimateStrength(password);
+      expect(estimate.score, password).toBeLessThanOrEqual(1);
+      expect(estimate.hints, password).toContain('name-or-word');
+    }
+  });
+
+  it('rarely takes random characters in those shapes for a word', () => {
+    const lowered = (passwords: string[], atLeast: number): number =>
+      passwords.filter((password) => estimateStrength(password).score < atLeast).length;
+    // 12 letters, a separator, 4 digits: about 72 bits when chosen at random.
+    const separated = randomStrings(LOWER, 12, 1000, 311).map(
+      (letters, index) => `${letters}${'@#_-.!'[index % 6]}${1000 + ((index * 37) % 9000)}`,
+    );
+    expect(lowered(separated, 3)).toBeLessThan(20);
+    // 3 digits and 12 letters: about 66 bits.
+    const prefixed = randomStrings(LOWER, 12, 1000, 312).map(
+      (letters, index) => `${100 + ((index * 53) % 900)}${letters}`,
+    );
+    expect(lowered(prefixed, 3)).toBeLessThan(20);
+    // Letters and digits throughout, as other generators and hashes produce them: 12
+    // hexadecimal digits are worth 48 bits.
+    expect(lowered(randomStrings('0123456789abcdef', 12, 1000, 313), 2)).toBeLessThan(10);
+  });
+
   it('leaves alone what is not a word with digits', () => {
     const unchanged: [string, number][] = [
       // Letters nobody would read as a word, however they end.

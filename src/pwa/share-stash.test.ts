@@ -28,10 +28,13 @@ async function entryCount(storage: CacheStorage): Promise<number> {
   return (await (await storage.open(STASH_CACHE)).keys()).length;
 }
 
-/** The paths of the stashed entries below the batch: "file/slice". */
+/** The stashed entries below their batch: "file/slice", and "complete" for the batch's mark. */
 async function entryPaths(storage: CacheStorage): Promise<string[]> {
   const requests = await (await storage.open(STASH_CACHE)).keys();
-  return requests.map((request) => request.url.split('/').slice(-2).join('/')).sort();
+  return requests
+    .map((request) => request.url.split('/'))
+    .map((parts) => (parts.at(-1) === 'complete' ? 'complete' : parts.slice(-2).join('/')))
+    .sort();
 }
 
 /** A storage whose stash refuses the entries `refuses` picks, the way a full disk would. */
@@ -94,7 +97,7 @@ describe('share stash', () => {
     expect(await entryCount(storage)).toBe(0);
   });
 
-  it('gives each file to only one of several tabs collecting at the same time', async () => {
+  it('gives a share to only one of several tabs collecting at the same time, in one piece', async () => {
     const storage = memoryCacheStorage();
     await stashFiles(storage, SCOPE, [pdf('a.pdf'), pdf('b.pdf'), pdf('c.pdf')]);
     const results = await Promise.all([
@@ -102,8 +105,38 @@ describe('share stash', () => {
       takeStashedFiles(storage, SCOPE),
       takeStashedFiles(storage, SCOPE),
     ]);
-    const names = results.flat(2).map((file) => file.name);
-    expect(names.sort()).toEqual(['a.pdf', 'b.pdf', 'c.pdf']);
+    const taken = results.filter((batches) => batches.length > 0);
+    expect(taken).toHaveLength(1);
+    expect(taken[0]!.flat().map((file) => file.name)).toEqual(['a.pdf', 'b.pdf', 'c.pdf']);
+    expect(await entryCount(storage)).toBe(0);
+  });
+
+  it('hands over nothing of a share that is still being written', async () => {
+    // A second collector looks each time the worker has parked another entry of the share.
+    const storage = memoryCacheStorage();
+    const seen: string[][] = [];
+    const open = storage.open.bind(storage);
+    storage.open = async (name) => {
+      const cache = await open(name);
+      const put = cache.put.bind(cache);
+      return Object.assign(Object.create(cache) as Cache, {
+        async put(request: RequestInfo | URL, response: Response): Promise<void> {
+          await put(request, response);
+          if (String(request).endsWith('/complete')) return;
+          const early = await takeStashedFiles(storage, SCOPE, 1000);
+          seen.push(early.flat().map((file) => file.name));
+        },
+      });
+    };
+    const files = [pdf('first.pdf'), pdf('second.pdf'), pdf('third.pdf')];
+    expect(await stashFiles(storage, SCOPE, files, 1000)).toEqual({ stored: 3, failed: 0 });
+    expect(seen).toEqual([[], [], []]);
+
+    // Complete: all of it, to whoever comes next.
+    const batches = await takeStashedFiles(storage, SCOPE, 1000);
+    expect(batches.map((batch) => batch.map((file) => file.name))).toEqual([
+      ['first.pdf', 'second.pdf', 'third.pdf'],
+    ]);
   });
 
   it('discards stale files instead of delivering them', async () => {
@@ -149,6 +182,10 @@ describe('share stash', () => {
       `${SCOPE}__pdfkey-incoming__/000000000001000-ab/0/0`,
       new Response('x', { headers: { 'X-PDFKey-Received': '1000' } }),
     );
+    await cache.put(
+      `${SCOPE}__pdfkey-incoming__/000000000001000-ab/complete`,
+      new Response(null, { headers: { 'X-PDFKey-Received': '1000' } }),
+    );
     // The layout of an earlier version, one entry per file: not understood, not kept.
     await cache.put(
       `${SCOPE}__pdfkey-incoming__/000000000001000-cd/0`,
@@ -168,13 +205,15 @@ describe('share stash', () => {
     await stashFiles(storage, 'https://user.github.io/other/', [pdf('old2.pdf')], 0);
     await stashFiles(storage, SCOPE, [pdf('new.pdf')], STASH_MAX_AGE_MS);
     await purgeStaleStash(storage, STASH_MAX_AGE_MS + 1);
-    expect(await entryCount(storage)).toBe(1);
+    // What is left is the fresh share: its file and its mark.
+    expect(await entryPaths(storage)).toEqual(['0/0', 'complete']);
     await purgeStaleStash(memoryCacheStorage());
   });
 
-  it('removes the stash of the earlier layout', async () => {
+  it('removes the stashes of the earlier layouts', async () => {
     const storage = memoryCacheStorage();
     await (await storage.open('pdfkey-incoming-v1')).put(`${SCOPE}x`, new Response('x'));
+    await (await storage.open('pdfkey-incoming-v2')).put(`${SCOPE}y`, new Response('y'));
     await purgeStaleStash(storage);
     expect(await storage.keys()).toEqual([]);
   });
@@ -196,7 +235,7 @@ describe('share stash: large files', () => {
     const storage = memoryCacheStorage();
     const report = await stashFiles(storage, SCOPE, [large()], 1000, 10);
     expect(report).toEqual({ stored: 1, failed: 0 });
-    expect(await entryPaths(storage)).toEqual(['0/0', '0/1', '0/2', '0/3']);
+    expect(await entryPaths(storage)).toEqual(['0/0', '0/1', '0/2', '0/3', 'complete']);
 
     const [[file]] = (await takeStashedFiles(storage, SCOPE, 1000)) as [[File]];
     expect(file.name).toBe('large.pdf');
@@ -247,23 +286,32 @@ describe('share stash: large files', () => {
     expect(await entryCount(storage)).toBe(0);
   });
 
-  it('leaves a file alone while the worker is still writing it', async () => {
+  it('leaves a share alone while the worker is still writing it', async () => {
     const storage = memoryCacheStorage();
     await stashFiles(storage, SCOPE, [pdf('ready.pdf'), large()], 1000, 10);
+    // As it was a moment earlier: the last slice of the large file and the mark are to come.
     const cache = await storage.open(STASH_CACHE);
-    const last = (await cache.keys()).find((request) => request.url.endsWith('/1/3'))!;
-    const response = (await cache.match(last))!;
-    await cache.delete(last);
+    const keys = await cache.keys();
+    const pending = [
+      keys.find((request) => request.url.endsWith('/1/3'))!,
+      keys.find((request) => request.url.endsWith('/complete'))!,
+    ];
+    const responses = await Promise.all(
+      pending.map(async (request) => (await cache.match(request))!),
+    );
+    await Promise.all(pending.map((request) => cache.delete(request)));
 
-    // Not all slices are there: only the complete file is taken.
-    const early = await takeStashedFiles(storage, SCOPE, 1000);
-    expect(early.flat().map((file) => file.name)).toEqual(['ready.pdf']);
-    expect(await entryPaths(storage)).toEqual(['1/0', '1/1', '1/2']);
+    // Not even the file that is finished is taken: a share is not split between two collectors.
+    expect(await takeStashedFiles(storage, SCOPE, 1000)).toEqual([]);
+    expect(await entryPaths(storage)).toEqual(['0/0', '0/1', '1/0', '1/1', '1/2']);
 
-    // The last slice arrives: now the file is whole.
-    await cache.put(last, response);
-    const [[file]] = (await takeStashedFiles(storage, SCOPE, 1000)) as [[File]];
-    expect(await file.text()).toBe(content);
+    // The rest arrives: now the share is whole.
+    await cache.put(pending[0]!, responses[0]!);
+    expect(await takeStashedFiles(storage, SCOPE, 1000)).toEqual([]);
+    await cache.put(pending[1]!, responses[1]!);
+    const [batch] = await takeStashedFiles(storage, SCOPE, 1000);
+    expect(batch!.map((file) => file.name)).toEqual(['ready.pdf', 'large.pdf']);
+    expect(await batch![1]!.text()).toBe(content);
     expect(await entryCount(storage)).toBe(0);
   });
 
@@ -281,12 +329,27 @@ describe('share stash: large files', () => {
     const storage = storageRefusing((url) => url.endsWith('/1/2'));
     const files = [large('fits.pdf'), large('too-much.pdf'), pdf('small.pdf')];
     expect(await stashFiles(storage, SCOPE, files, 1000, 10)).toEqual({ stored: 2, failed: 1 });
-    expect(await entryPaths(storage)).toEqual(['0/0', '0/1', '0/2', '0/3', '2/0', '2/1']);
+    expect(await entryPaths(storage)).toEqual([
+      '0/0',
+      '0/1',
+      '0/2',
+      '0/3',
+      '2/0',
+      '2/1',
+      'complete',
+    ]);
 
     const batches = await takeStashedFiles(storage, SCOPE, 1000);
     expect(batches.map((batch) => batch.map((file) => file.name))).toEqual([
       ['fits.pdf', 'small.pdf'],
     ]);
+  });
+
+  it('reports every file when the share cannot be marked complete', async () => {
+    const storage = storageRefusing((url) => url.endsWith('/complete'));
+    const report = await stashFiles(storage, SCOPE, [large(), pdf('small.pdf')], 1000, 10);
+    expect(report).toEqual({ stored: 0, failed: 2 });
+    expect(await entryCount(storage)).toBe(0);
   });
 
   it('reports every file when nothing can be stored', async () => {

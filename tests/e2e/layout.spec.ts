@@ -6,6 +6,7 @@
  *   - no label is cut off with an ellipsis and none is squeezed out of its button (file names
  *     are the exception: they are shortened on purpose);
  *   - nothing in the pinned list header reaches below it, visible or not;
+ *   - no note or advice ends in a stub of a last line;
  *   - the primary button is completely on screen and can be pressed;
  *   - a focused field comes to rest clear of the pinned action area and the top bar;
  *   - the last file of a long list can be scrolled clear of the pinned action area;
@@ -216,6 +217,76 @@ function belowPinnedHeader(page: Page): Promise<string[]> {
   });
 }
 
+/**
+ * Notes and advice keep the end of their text together (prose.tsx), so that the last line is
+ * never a stub: "……文件也将无法 / 打开。" or one English word alone. This measures the outcome
+ * in every text that has such an end piece: its last line as the browser has set it.
+ */
+function stubLines(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const problems: string[] = [];
+    // Not what is there for screen readers only (the reminder of the bar with the keyboard open).
+    const seen = (element: Element): boolean => {
+      if (!(element as HTMLElement).checkVisibility({ checkVisibilityCSS: true })) return false;
+      for (let node: Element | null = element; node && node !== document.body;) {
+        const style = getComputedStyle(node);
+        if (style.clipPath !== 'none' && node.getBoundingClientRect().width <= 2) return false;
+        node = node.parentElement;
+      }
+      return true;
+    };
+    const blocks = new Set<Element>();
+    for (const piece of document.querySelectorAll('.keep')) {
+      let block: Element | null = piece;
+      while (block && (block.matches('.keep') || getComputedStyle(block).display === 'inline')) {
+        block = block.parentElement;
+      }
+      if (block && seen(block)) blocks.add(block);
+    }
+    for (const block of blocks) {
+      // The characters of the text, line by line. A heading inside the block ("File is damaged")
+      // is a block of its own and not part of the text.
+      const lines: { middle: number; text: string }[] = [];
+      const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        let owner = node.parentElement;
+        while (
+          owner &&
+          owner !== block &&
+          !/^(block|flex|grid)$/.test(getComputedStyle(owner).display)
+        ) {
+          owner = owner.parentElement;
+        }
+        if (owner !== block) continue;
+        const text = node.nodeValue ?? '';
+        for (let index = 0; index < text.length; index++) {
+          range.setStart(node, index);
+          range.setEnd(node, index + 1);
+          const box = range.getClientRects()[0];
+          if (!box || box.width === 0) continue;
+          const middle = (box.top + box.bottom) / 2;
+          const line = lines.find((other) => Math.abs(other.middle - middle) < 6);
+          if (line) line.text += text.charAt(index);
+          else lines.push({ middle, text: text.charAt(index) });
+        }
+      }
+      if (lines.length < 2) continue;
+      lines.sort((a, b) => a.middle - b.middle);
+      const last = lines[lines.length - 1]!.text.trim();
+      const letters = last.replace(/[\s，。；：！？、,.;:!?…]/g, '');
+      const stub = /[\u3400-\u9fff]/.test(last)
+        ? letters.length < 4
+        : last.split(/\s+/).length < 2 && letters.length < 12;
+      if (stub) {
+        const whole = lines.map((line) => line.text.trim()).join(' / ');
+        problems.push(`the last line of "${whole}" is a stub`);
+      }
+    }
+    return problems;
+  });
+}
+
 /** What covers an element at its centre and near its edges, if anything does. */
 function coveredBy(target: Locator): Promise<string[]> {
   return target.evaluate((element) => {
@@ -263,6 +334,7 @@ async function check(app: App, state: string, checks: Checks): Promise<void> {
   for (const found of await overflow(page)) note(found);
   for (const found of await cutOff(page)) note(found);
   for (const found of await belowPinnedHeader(page)) note(found);
+  for (const found of await stubLines(page)) note(found);
 
   const scrollTo = (position: 'top' | 'end'): Promise<void> =>
     page.evaluate((where) => {
@@ -372,6 +444,33 @@ test.describe('the guards themselves', () => {
     });
     expect((await cutOff(page)).join('\n')).toContain('does not fit inside its own padding');
   });
+
+  test('notice a last line that is a stub', async ({ app, page }) => {
+    await app.open();
+    // Ten characters in a column of eight and a half: the end piece decides where the line
+    // breaks, if it is kept together.
+    const set = (head: string, end: string, kept: boolean): Promise<void> =>
+      page.evaluate(
+        (text) => {
+          document.querySelector('#stub-probe')?.remove();
+          const probe = document.createElement('p');
+          probe.id = 'stub-probe';
+          probe.style.cssText = 'width: 8.5em; font-size: 16px; letter-spacing: 0;';
+          const piece = document.createElement('span');
+          piece.className = 'keep';
+          if (!text.kept) piece.style.display = 'inline';
+          piece.textContent = text.end;
+          probe.append(text.head, piece);
+          document.body.append(probe);
+        },
+        { head, end, kept },
+      );
+
+    await set('一二三四五', '六七八九十。', true);
+    expect(await stubLines(page)).toEqual([]);
+    await set('一二三四五六七八', '九十。', false);
+    expect((await stubLines(page)).join('\n')).toContain('九十。" is a stub');
+  });
 });
 
 /** A share sheet for PDF files, as Chrome on Android has one. */
@@ -427,6 +526,34 @@ test.describe('the progress of a typed password, on the phone', () => {
     expect(line!.width, 'to the right edge').toBe(line!.areaWidth);
   });
 });
+
+for (const size of SIZES.filter((candidate) => candidate.mobile && !candidate.keyboardFrom)) {
+  test.describe(`a generated password, ${size.name}`, () => {
+    test.use({ ...PHONE, viewport: { width: size.width, height: size.height }, locale: 'zh-CN' });
+
+    /** How far the text of a field reaches beyond the field: 0 when all of it is in sight. */
+    const hidden = (field: Locator): Promise<number> =>
+      field.evaluate((element) => Math.max(0, element.scrollWidth - element.clientWidth));
+
+    test('is shown whole, in the form and with the results', async ({ app, page }) => {
+      await app.open();
+      await app.addFixtures('plain.pdf');
+      await app.analysed(1);
+      await app.switchMode('lock');
+      await app.dock.getByRole('button', { name: app.t('lock.generate'), exact: true }).click();
+      await expect(app.lockPassword).toHaveValue(/^.{16,}$/);
+      await app.settled();
+      expect(await hidden(app.lockPassword), 'cut off in the form').toBe(0);
+
+      await app.press(app.dockButton('action.lock'));
+      await app.expectState('plain.pdf', 'done', 'lock');
+      const applied = page.locator('#lock-result-password');
+      await expect(applied).toHaveValue(/^.{16,}$/);
+      await app.settled();
+      expect(await hidden(applied), 'cut off beside the results').toBe(0);
+    });
+  });
+}
 
 for (const size of SIZES) {
   for (const locale of LOCALES) {

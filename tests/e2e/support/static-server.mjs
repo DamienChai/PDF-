@@ -9,8 +9,13 @@
 // A browser that sends the cookie `e2e-sw-version=<n>` gets sw.js with a trailing comment naming
 // that version: byte-different from the built script, so to that browser (and to no other test)
 // a new version of the app has been published.
+//
+// A browser that sends the cookie `e2e-build=<tag>` gets the site as a release that changed
+// every file would leave it: each file of assets/ has another name (`name.<tag>.ext`), every
+// reference to it says so, the built names are gone (404), and the service worker's precache
+// list gives every other file a new revision.
 import { createServer } from 'node:http';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 
 const [dir = 'dist', port = '5173', prefix = '/PDF-/'] = process.argv.slice(2);
@@ -28,6 +33,14 @@ const TYPES = {
   '.json': 'application/json',
   '.txt': 'text/plain; charset=utf-8',
 };
+
+const TEXT = new Set(['.html', '.js', '.mjs', '.css', '.webmanifest', '.json']);
+
+function cookie(request, name) {
+  return new RegExp(`(?:^|;\\s*)${name}=(\\w+)`).exec(request.headers.cookie ?? '')?.[1];
+}
+
+const renamed = (name, tag) => name.replace(/(\.[^.]+)$/, `.${tag}$1`);
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', 'http://localhost');
@@ -52,10 +65,25 @@ const server = createServer(async (request, response) => {
     relative = join(relative, 'index.html');
   }
   try {
+    const build = cookie(request, 'e2e-build');
+    const assets = build ? await readdir(join(root, 'assets')) : [];
+    if (build && relative.startsWith('assets/')) {
+      const built = assets.find((name) => `assets/${renamed(name, build)}` === relative);
+      if (!built) throw new Error('not part of this build');
+      relative = `assets/${built}`;
+    }
     const file = join(root, relative);
     if ((await stat(file)).isDirectory()) throw new Error('directory');
     let body = await readFile(file);
-    const version = /(?:^|;\s*)e2e-sw-version=(\w+)/.exec(request.headers.cookie ?? '')?.[1];
+    if (build && TEXT.has(extname(file))) {
+      let text = body.toString('utf8');
+      for (const name of assets) text = text.split(name).join(renamed(name, build));
+      // The precache list of the worker: the files without a hash in their name changed too.
+      if (relative === 'sw.js')
+        text = text.replace(/"revision":"(\w+)"/g, `"revision":"$1${build}"`);
+      body = Buffer.from(text);
+    }
+    const version = cookie(request, 'e2e-sw-version');
     if (version && relative === 'sw.js') {
       body = Buffer.concat([body, Buffer.from(`\n// e2e: version ${version}\n`)]);
     }

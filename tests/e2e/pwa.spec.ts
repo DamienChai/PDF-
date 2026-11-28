@@ -15,7 +15,7 @@ import { LARGE_PDF, fixture, fixturePath, unlockedName } from './support/files';
 import { streamHashes } from '../../src/engine/test-support';
 import { buildLargePdf } from './support/large-pdf';
 import { encryptPdf, expectUnlockedCopy, inspectPdf } from './support/pdf';
-import { SUBPATH, SUBPATH_URL, SW_VERSION_COOKIE } from './support/servers';
+import { BUILD_COOKIE, SUBPATH, SUBPATH_URL, SW_VERSION_COOKIE } from './support/servers';
 
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
 
@@ -727,5 +727,80 @@ test.describe('under a sub-path, as on GitHub Pages', () => {
     await otherReloaded;
     await other.ready();
     await expect(other.chooseButton).toBeVisible();
+  });
+
+  test('a window left on the old build keeps its engine when a release renames the engine files', async ({
+    app,
+    page,
+    context,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    const builtWorker = /\/assets\/worker-[\w-]+\.js$/;
+    await install(app);
+    await app.toasts.getByRole('button', { name: app.t('toast.dismiss'), exact: true }).click();
+
+    // A second window with a result nobody has saved: it will not be reloaded.
+    const otherPage = await context.newPage();
+    const other = new App(otherPage, app.lang, app.phone, (...segments) =>
+      testInfo.outputPath('other-window', ...segments),
+    );
+    otherPage.on('filechooser', () => undefined);
+    await other.open('./');
+    await controlled(other);
+    await other.addFixtures('aes-256-r6.pdf');
+    await other.expectState('aes-256-r6.pdf', 'needs-password');
+    await other.unlockWith('user');
+    await other.expectState('aes-256-r6.pdf', 'done');
+    await otherPage.evaluate(() => {
+      (window as unknown as { e2eSameDocument: boolean }).e2eSameDocument = true;
+    });
+
+    // A release that touched the engine: every hashed file has another name, and the server
+    // no longer has the old ones. The idle window takes it.
+    await context.addCookies([{ name: BUILD_COOKIE, value: 'next', url: SUBPATH_URL }]);
+    await publish(page, context, 'renamed');
+    await app.expectToast('toast.update');
+    const reloaded = page.waitForEvent('load');
+    await app.toasts
+      .getByRole('button', { name: app.t('toast.update.action'), exact: true })
+      .click();
+    await reloaded;
+    await app.ready();
+    await controlled(app);
+    await app.addFixtures('aes-128-r4.pdf');
+    await app.expectState('aes-128-r4.pdf', 'needs-password');
+    expect(page.workers().map((worker) => worker.url())).toEqual([
+      expect.stringMatching(/\/assets\/worker-[\w-]+\.next\.js$/),
+    ]);
+
+    // Later: what the browser's HTTP cache still had of the old build has expired.
+    const devtools = await context.newCDPSession(otherPage);
+    await devtools.send('Network.clearBrowserCache');
+    await devtools.detach();
+
+    // The other window still runs the old build. Cancelling a job ends its only engine worker,
+    // so everything from here on needs a new one: the old worker script and the old engine.
+    await other.addFiles([LARGE_PDF.path]);
+    await other.expectState(LARGE_PDF.name, 'needs-password');
+    await other.unlockWith(LARGE_PDF.password);
+    await other.expectState(LARGE_PDF.name, 'processing');
+    await other.press(other.dockButton('action.cancel'));
+    await other.expectState(LARGE_PDF.name, 'needs-password');
+    await expect.poll(() => otherPage.workers().length).toBe(0);
+
+    await other.addFixtures('aes-128-r4.pdf');
+    await other.expectState('aes-128-r4.pdf', 'needs-password');
+    expect(otherPage.workers().map((worker) => worker.url())).toEqual([
+      expect.stringMatching(builtWorker),
+    ]);
+    await other.unlockWith('user');
+    await other.expectState('aes-128-r4.pdf', 'done');
+    await other.expectState(LARGE_PDF.name, 'wrong-password');
+    await other.expectState('aes-256-r6.pdf', 'done');
+    expect(
+      await otherPage.evaluate(
+        () => (window as unknown as { e2eSameDocument?: boolean }).e2eSameDocument,
+      ),
+    ).toBe(true);
   });
 });

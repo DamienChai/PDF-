@@ -3,6 +3,7 @@ import type { ComponentChildren } from 'preact';
 import { formatDuration, formatNumber, formatSize, t, type Message } from '../i18n';
 import { closeOverlay, detailsEntry, type DetailsView, type PermissionRow } from '../state';
 import { Icon, type IconName } from './icons';
+import { Prose } from './prose';
 import { Sheet, useLast } from './sheet';
 
 const STATUS_ICON: Readonly<Record<PermissionRow['status'], IconName>> = {
@@ -58,7 +59,9 @@ function Content({ details }: { details: DetailsView }) {
         </span>
         <div class="banner__text">
           {details.protection && <p class="banner__title">{t(details.protection)}</p>}
-          <p class="banner__body">{t(summaryText(details))}</p>
+          <p class="banner__body">
+            <Prose text={t(summaryText(details))} />
+          </p>
         </div>
       </div>
 
@@ -67,7 +70,7 @@ function Content({ details }: { details: DetailsView }) {
           <Icon name="alert" size="sm" />
           <div>
             <p>
-              <strong>{t(error.title)}</strong> {t(error.advice)}
+              <strong>{t(error.title)}</strong> <Prose text={t(error.advice)} />
             </p>
             {error.detail && <pre class="problem__detail">{error.detail}</pre>}
           </div>
@@ -76,7 +79,11 @@ function Content({ details }: { details: DetailsView }) {
 
       <dl class="tiles tiles--facts">
         {/* A file that is not encrypted has neither: the summary above says so. */}
-        {details.algorithm && <Tile label={t('details.algorithm')}>{t(details.algorithm)}</Tile>}
+        {details.algorithm && (
+          <Tile label={t('details.algorithm')}>
+            <Prose text={t(details.algorithm)} />
+          </Tile>
+        )}
         {details.keyLength && <Tile label={t('details.keyLength')}>{t(details.keyLength)}</Tile>}
         {details.available && (
           <>
@@ -102,7 +109,9 @@ function Content({ details }: { details: DetailsView }) {
       {details.outdatedNote && (
         <p class="notice notice--boxed notice--warning">
           <Icon name="warning" size="sm" />
-          {t(details.outdatedNote)}
+          <span>
+            <Prose text={t(details.outdatedNote)} />
+          </span>
         </p>
       )}
 
@@ -111,7 +120,11 @@ function Content({ details }: { details: DetailsView }) {
           <h3 class="section-title" id="details-permissions">
             {t('details.permissions')}
           </h3>
-          {details.permissionsNote && <p class="hint">{t(details.permissionsNote)}</p>}
+          {details.permissionsNote && (
+            <p class="hint">
+              <Prose text={t(details.permissionsNote)} />
+            </p>
+          )}
           <ul class="rows">
             {details.permissions.map((row) => (
               <li class="row" key={row.id}>

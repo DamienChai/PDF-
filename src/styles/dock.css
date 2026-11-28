@@ -78,7 +78,7 @@
 .dock__status--note .dock__headline > span {
   overflow: visible;
   white-space: normal;
-  text-wrap: pretty;
+  text-wrap: var(--wrap-notes);
 }
 
 .dock__status--note .dock__headline > .icon {
@@ -140,7 +140,7 @@
   background: var(--color-sunken);
   color: var(--color-text-2);
   font: var(--type-caption);
-  text-wrap: pretty;
+  text-wrap: var(--wrap-notes);
 }
 
 .dock__slot--progress {

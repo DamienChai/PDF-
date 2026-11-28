@@ -1,16 +1,19 @@
 /**
- * Service worker: offline support and the receiving end of the Web Share Target.
+ * Service worker: offline support, the receiving end of the Web Share Target, and the files of
+ * the previous build for windows that still run it.
  *
  * Built by vite-plugin-pwa (injectManifest); `self.__WB_MANIFEST` is replaced with the list of
  * every file of the build, including the engine's worker bundle and WebAssembly module.
  */
-import { clientsClaim } from 'workbox-core';
+import { cacheNames, clientsClaim } from 'workbox-core';
 import {
   cleanupOutdatedCaches,
   createHandlerBoundToURL,
+  getCacheKeyForURL,
   precacheAndRoute,
 } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
+import { keepPreviousBuild, matchPreviousBuild, prunePreviousBuilds } from './previous-builds';
 import { SKIP_WAITING, type SkipWaitingMessage } from './protocol';
 import {
   SHARE_LOST_ALL,
@@ -34,9 +37,18 @@ interface FetchEventLike extends ExtendableEventLike {
 interface ServiceWorkerScope {
   __WB_MANIFEST: (string | { url: string; revision: string | null })[];
   readonly registration: ServiceWorkerRegistration;
+  readonly clients: {
+    matchAll(options: {
+      type: 'window';
+      includeUncontrolled: boolean;
+    }): Promise<readonly unknown[]>;
+  };
   skipWaiting(): Promise<void>;
   addEventListener(type: 'fetch', listener: (event: FetchEventLike) => void): void;
-  addEventListener(type: 'activate', listener: (event: ExtendableEventLike) => void): void;
+  addEventListener(
+    type: 'install' | 'activate',
+    listener: (event: ExtendableEventLike) => void,
+  ): void;
   addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
 }
 declare const self: ServiceWorkerScope;
@@ -88,6 +100,28 @@ registerRoute(
   }),
 );
 
+// --- Windows that still run the previous build ----------------------------------------------------
+// See previous-builds.ts. The files are set aside while this version installs (the precache is
+// then still that of the running one), and served by the last route: it sees what neither the
+// precache nor the app shell answers.
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    keepPreviousBuild(
+      caches,
+      scope,
+      cacheNames.precache,
+      (url) => getCacheKeyForURL(url) !== undefined,
+    ).catch(() => undefined),
+  );
+});
+
+registerRoute(
+  ({ url, request, sameOrigin }) =>
+    sameOrigin && request.mode !== 'navigate' && url.href.startsWith(scope),
+  async ({ request }) => (await matchPreviousBuild(caches, scope, request)) ?? fetch(request),
+);
+
 // A first installation takes control of the page that registered it, so that page is offline
 // capable without a reload. Updates are different: a new version waits until the user agrees.
 clientsClaim();
@@ -99,4 +133,10 @@ self.addEventListener('message', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(purgeStaleStash(caches).catch(() => undefined));
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windows) => prunePreviousBuilds(caches, scope, windows.length))
+      .catch(() => undefined),
+  );
 });
