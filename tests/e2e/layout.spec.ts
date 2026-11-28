@@ -458,7 +458,10 @@ test.describe('the guards themselves', () => {
           probe.style.cssText = 'width: 8.5em; font-size: 16px; letter-spacing: 0;';
           const piece = document.createElement('span');
           piece.className = 'keep';
-          if (!text.kept) piece.style.display = 'inline';
+          // Chinese pieces are inline text that does not break, others inline blocks (base.css).
+          piece.style.cssText = text.kept
+            ? 'display: inline; white-space: nowrap;'
+            : 'display: inline; white-space: normal;';
           piece.textContent = text.end;
           probe.append(text.head, piece);
           document.body.append(probe);

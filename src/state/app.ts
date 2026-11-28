@@ -162,7 +162,11 @@ export function createAppStarter(deps: AppDependencies): () => void {
       deps.registerServiceWorker({
         ...offerUpdates(),
         onOfflineReady: () => {
-          deps.toasts.show({ key: 'toast.offlineReady' }, { key: OFFLINE_TOAST, tone: 'success' });
+          // Whenever the download happens to finish: not on top of a toast that answers the user.
+          deps.toasts.show(
+            { key: 'toast.offlineReady' },
+            { key: OFFLINE_TOAST, tone: 'success', background: true },
+          );
         },
       }),
     );

@@ -800,6 +800,32 @@ describe('a file that lost its trailer', () => {
     expect((await engine.inspect(sound)).encrypted).toBe(false);
   });
 
+  test('a scan whose few bytes of content do not look like cipher output is not called unencrypted', async () => {
+    // One image under a filter that says nothing about how its data begins, and 36 bytes of
+    // page content without a filter: ciphertext that short has no control character one time
+    // in ten. Not reading as text either, it is no witness for an unencrypted file.
+    const file = fixtureBlob('truncated-scan-r3.pdf');
+    const text = latin1(fixtureBytes('truncated-scan-r3.pdf'));
+    expect(text).not.toMatch(/\/Encrypt|\/Standard|\/FlateDecode/);
+    expect(text.match(/\/Filter/g)).toEqual(['/Filter']);
+    const content = /<< \/Length 36 >>\nstream\n([\s\S]{36})\nendstream/;
+    expect(content.exec(text)![1]).not.toMatch(/[\x00-\x08\x0b\x0e-\x1f]/);
+    const error = await failure(engine.inspect(file, 'user'));
+    expect(error?.code).toBe('damaged');
+    expect(error?.detail).toContain('nothing in the rest tells whether the file was encrypted');
+    const lock = { kind: 'encrypt', options: aes256('new', '') } as const;
+    expect(await codeOf(engine.process({ file, password: '', operation: lock }))).toBe('damaged');
+
+    // The same page before it was encrypted: its content reads as text, and it is repaired.
+    const plain = edited('truncated-scan-r3.pdf', (damaged) =>
+      damaged.replace(content, (all, data: string) =>
+        all.replace(data, 'q 595.32 0 0 841.92 0 0 cm /Im0 Do Q'),
+      ),
+    );
+    const inspected = await engine.inspect(plain);
+    expect(inspected).toMatchObject({ encrypted: false, pageCount: 1 });
+  });
+
   // An unencrypted file that lost its trailer is repaired, whatever unusual things it holds.
   describe('unencrypted, with content that only looks suspicious', () => {
     const object = (number: number, body: string): string => `${number} 0 obj\n${body}\nendobj\n`;

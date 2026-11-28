@@ -137,6 +137,58 @@ describe('files of the previous build', () => {
     expect(await storage.has(previousBuildsCache(SCOPE))).toBe(false);
   });
 
+  it('a page that has loaded alone leaves only what was set aside for its own build', async () => {
+    const storage = memoryCacheStorage();
+    await precacheOf(storage, V1);
+    await keepPreviousBuild(storage, SCOPE, PRECACHE, inV2, 1000);
+    // Version 2 runs; version 3 has installed and waits, with a file of version 2 set aside.
+    await storage.delete(PRECACHE);
+    await precacheOf(storage, { 'assets/worker-FFFF.js': 'worker 2', 'assets/index-EEEE.js': '2' });
+    await keepPreviousBuild(storage, SCOPE, PRECACHE, (url) => url.endsWith('index-EEEE.js'), 3000);
+    expect(await keptPaths(storage)).toHaveLength(4);
+
+    // Another window is open: it may run version 1.
+    await prunePreviousBuilds(storage, SCOPE, 1, 4000, inV2);
+    expect(await keptPaths(storage)).toHaveLength(4);
+    // Alone: nothing runs version 1 any more; the page itself runs version 2.
+    await prunePreviousBuilds(storage, SCOPE, 0, 4000, inV2);
+    expect(await keptPaths(storage)).toEqual(['assets/worker-FFFF.js']);
+    // Not for ever either.
+    await prunePreviousBuilds(storage, SCOPE, 0, 3001 + PREVIOUS_BUILD_MAX_AGE_MS, inV2);
+    expect(await storage.has(previousBuildsCache(SCOPE))).toBe(false);
+  });
+
+  it('a page that has loaded alone after an update leaves nothing behind', async () => {
+    const storage = memoryCacheStorage();
+    await precacheOf(storage, V1);
+    await keepPreviousBuild(storage, SCOPE, PRECACHE, inV2, 1000);
+    await prunePreviousBuilds(storage, SCOPE, 0, 2000, inV2);
+    expect(await storage.has(previousBuildsCache(SCOPE))).toBe(false);
+  });
+
+  it('takes back the copies of an attempt that ran out of room', async () => {
+    const storage = memoryCacheStorage();
+    await precacheOf(storage, V1);
+    const kept = await storage.open(previousBuildsCache(SCOPE));
+    await kept.put(`${SCOPE}assets/older-0000.js`, new Response('kept before'));
+    const put = kept.put.bind(kept);
+    let room = 1;
+    // The cache storage hands out one object per cache: the copy below meets this one.
+    kept.put = async (request, response) => {
+      if (room-- <= 0) throw new DOMException('full', 'QuotaExceededError');
+      return put(request, response);
+    };
+    await expect(keepPreviousBuild(storage, SCOPE, PRECACHE, inV2, 1000)).rejects.toThrow('full');
+    // What an earlier update set aside is untouched; nothing of this one is left.
+    expect(await keptPaths(storage)).toEqual(['assets/older-0000.js']);
+
+    // With nothing else in it, the cache goes as well.
+    await kept.delete(`${SCOPE}assets/older-0000.js`);
+    room = 2;
+    await expect(keepPreviousBuild(storage, SCOPE, PRECACHE, inV2, 1000)).rejects.toThrow('full');
+    expect(await storage.has(previousBuildsCache(SCOPE))).toBe(false);
+  });
+
   it('keeps the copies of the app on one origin apart', async () => {
     const storage = memoryCacheStorage();
     const other = 'https://user.github.io/other/';

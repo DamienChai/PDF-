@@ -137,6 +137,20 @@ svg {
   display: inline-block;
 }
 
+/* The end of a Chinese sentence joins the text before it without a space, and an inline block
+   would get one in the name or description a screen reader is given ("大 多数软件"). There the
+   piece is plain inline text: no line breaks between its characters unless it alone is wider
+   than the line, and none at all in a piece that is short (prose.tsx). */
+:lang(zh) .keep {
+  display: inline;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+:lang(zh) .keep--tight {
+  white-space: nowrap;
+}
+
 .mono {
   font-family: var(--font-mono);
 }

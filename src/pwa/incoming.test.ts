@@ -7,7 +7,8 @@ import {
   type IncomingEnvironment,
   type ShareProblem,
 } from './incoming';
-import { stashFiles } from './share-stash';
+import { SHARE_PING, SHARE_RECEIVED } from './protocol';
+import { shareRedirect, stashFiles } from './share-stash';
 import { memoryCacheStorage, settle } from './testing';
 
 const SCOPE = 'https://user.github.io/PDF-/';
@@ -52,12 +53,22 @@ function setup(url = SCOPE) {
     replaceUrl: (next) => {
       state.url = next;
     },
+    onWorkerMessage: (listener) => {
+      toPage = listener;
+    },
   };
+  let toPage: ((data: unknown, reply: (answer: unknown) => void) => void) | null = null;
   const launch = (params: LaunchParamsLike): void => {
     if (consumer) consumer(params);
     else queued.push(params);
   };
-  return { env, state, launch, incoming: createIncomingFiles(env) };
+  /** A message of the service worker to the page; returns what the page answered. */
+  const fromWorker = (data: unknown): unknown[] => {
+    const answers: unknown[] = [];
+    toPage?.(data, (answer) => answers.push(answer));
+    return answers;
+  };
+  return { env, state, launch, fromWorker, incoming: createIncomingFiles(env) };
 }
 
 type Received = [string[], string];
@@ -157,6 +168,42 @@ describe('incoming files: a share that did not arrive', () => {
     launch({ targetURL: `${SCOPE}?source=share-target&lost=all` });
     await settle();
     expect(problems).toEqual([{ received: 0, lost: null }]);
+  });
+
+  it('reports a share that only focused the running window: its files went nowhere', async () => {
+    // Desktop Chromium with `client_mode: focus-existing`: no request is made for the share,
+    // the window is told the address of the share target and gets no files.
+    const { state, incoming, launch } = setup();
+    const problems: ShareProblem[] = [];
+    const files = recorder();
+    const urls: string[] = [];
+    incoming.onIncomingFiles(files.handler);
+    incoming.onShareProblem((problem) => problems.push(problem));
+    incoming.onLaunchUrl((url) => urls.push(url.href));
+    launch({ targetURL: SCOPE });
+    await settle();
+    expect(problems).toEqual([]);
+
+    state.now = 60_000;
+    launch({ targetURL: `${SCOPE}share-target`, files: [] });
+    await settle();
+    expect(problems).toEqual([{ received: 0, lost: null }]);
+    expect(files.received).toEqual([]);
+    expect(urls).toEqual([]);
+  });
+
+  it('is quiet when the share that loaded the page is reported under the share target', async () => {
+    const { env, incoming, launch } = setup(`${SCOPE}?source=share-target`);
+    await stashFiles(env.caches!, SCOPE, [pdf('a.pdf')]);
+    // Queued by the browser before any consumer existed.
+    launch({ targetURL: `${SCOPE}share-target` });
+    const problems: ShareProblem[] = [];
+    const files = recorder();
+    incoming.onIncomingFiles(files.handler);
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+    expect(files.received).toEqual([[['a.pdf'], 'share-target']]);
+    expect(problems).toEqual([]);
   });
 
   it('keeps the report until somebody listens, and gives it once', async () => {
@@ -280,6 +327,79 @@ describe('incoming files: share target', () => {
     await settle();
     expect(received).toEqual([]);
     expect(state.url).toBe(SCOPE);
+  });
+});
+
+describe('incoming files: a share the worker leaves to the page that is open', () => {
+  it('answers the worker, then collects when told, and stays where it is', async () => {
+    const { env, state, incoming, fromWorker } = setup(`${SCOPE}?mode=lock`);
+    const files = recorder();
+    const problems: ShareProblem[] = [];
+    incoming.onIncomingFiles(files.handler);
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+
+    // The worker asks before it decides; only an answer keeps the page.
+    expect(fromWorker({ type: SHARE_PING })).toEqual([true]);
+    expect(files.received).toEqual([]);
+
+    await stashFiles(env.caches!, SCOPE, [pdf('a.pdf'), pdf('b.pdf')]);
+    const url = new URL(shareRedirect(0), SCOPE).href;
+    expect(fromWorker({ type: SHARE_RECEIVED, url })).toEqual([]);
+    await settle();
+    expect(files.received).toEqual([[['a.pdf', 'b.pdf'], 'share-target']]);
+    expect(problems).toEqual([]);
+    expect(state.url).toBe(`${SCOPE}?mode=lock`);
+  });
+
+  it('says what did not make it', async () => {
+    const { env, incoming, fromWorker } = setup();
+    const files = recorder();
+    const problems: ShareProblem[] = [];
+    incoming.onIncomingFiles(files.handler);
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+    fromWorker({ type: SHARE_RECEIVED, url: new URL(shareRedirect('all'), SCOPE).href });
+    await settle();
+    await stashFiles(env.caches!, SCOPE, [pdf('a.pdf')]);
+    fromWorker({ type: SHARE_RECEIVED, url: new URL(shareRedirect(2), SCOPE).href });
+    await settle();
+    expect(files.received).toEqual([[['a.pdf'], 'share-target']]);
+    expect(problems).toEqual([
+      { received: 0, lost: null },
+      { received: 1, lost: 2 },
+    ]);
+  });
+
+  it('does not take a launch for a lost share while the worker is bringing the files', async () => {
+    const { env, state, incoming, launch, fromWorker } = setup();
+    const files = recorder();
+    const problems: ShareProblem[] = [];
+    incoming.onIncomingFiles(files.handler);
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+    state.now = 60_000;
+    fromWorker({ type: SHARE_PING });
+    launch({ targetURL: `${SCOPE}share-target` });
+    await settle();
+    expect(problems).toEqual([]);
+    await stashFiles(env.caches!, SCOPE, [pdf('a.pdf')]);
+    fromWorker({ type: SHARE_RECEIVED, url: new URL(shareRedirect(0), SCOPE).href });
+    await settle();
+    expect(files.received).toEqual([[['a.pdf'], 'share-target']]);
+    expect(problems).toEqual([]);
+  });
+
+  it('ignores other messages', async () => {
+    const { incoming, fromWorker } = setup();
+    const problems: ShareProblem[] = [];
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+    expect(fromWorker(null)).toEqual([]);
+    expect(fromWorker({ type: 'SOMETHING_ELSE' })).toEqual([]);
+    expect(fromWorker({ type: SHARE_RECEIVED })).toEqual([]);
+    await settle();
+    expect(problems).toEqual([]);
   });
 });
 

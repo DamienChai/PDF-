@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SKIP_WAITING } from './protocol';
+import { PAGE_LOADED, SKIP_WAITING } from './protocol';
 import {
   manageServiceWorker,
   registerServiceWorker,
@@ -129,6 +129,25 @@ describe('registration', () => {
       scope: 'https://user.github.io/PDF-/',
       updateViaCache: 'none',
     });
+  });
+
+  it('tells the worker that served the page that the page has loaded', async () => {
+    const { env, container, existingInstallation } = setup(true);
+    const worker = existingInstallation();
+    await manageServiceWorker(env);
+    expect(worker.messages).toEqual([{ type: PAGE_LOADED }]);
+    expect(container.register).toHaveBeenCalledTimes(1);
+  });
+
+  it('has nobody to tell on a first visit', async () => {
+    const { env, registration, beginInstall, finishInstall, activate } = setup();
+    await manageServiceWorker(env);
+    const worker = beginInstall();
+    finishInstall(worker);
+    activate(worker, true);
+    await settle();
+    expect(worker.messages).toEqual([]);
+    expect(registration.active).toBe(worker);
   });
 
   it('is a no-op in development and outside a browser', () => {

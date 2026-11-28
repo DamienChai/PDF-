@@ -270,6 +270,15 @@ describe('service worker toasts', () => {
       { message: { key: 'toast.offlineReady' }, tone: 'success', sticky: false },
     ]);
   });
+
+  it('does not announce it on top of a toast that answers the user', () => {
+    const app = setup();
+    app.startApp();
+    app.toasts.show({ key: 'toast.folderLimit' });
+    app.hooks().onOfflineReady!();
+    // The last one is the one on screen.
+    expect(app.toastKeys()).toEqual(['toast.offlineReady', 'toast.folderLimit']);
+  });
 });
 
 describe('incoming files and launches', () => {

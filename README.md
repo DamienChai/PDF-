@@ -98,7 +98,7 @@ PDF 钥匙（PDF Key）用来去掉 PDF 的密码保护：你知道密码，想�
 
 1. 用 Chrome 打开应用的地址。
 2. 顶栏出现“安装”按钮时点它；没有的话，打开 Chrome 菜单，选“添加到主屏幕”或“安装应用”。“设置”里也有同样的入口。
-3. 安装之后，在其他应用（文件、邮件、聊天软件等）里对 PDF 选“分享”，在分享面板里选 “PDF Key”，文件就会出现在应用的列表中。
+3. 安装之后，在其他应用（文件、邮件、聊天软件等）里对 PDF 选“分享”，在分享面板里选 “PDF Key”，文件就会出现在应用的列表中；应用已经开着时，文件会加进现有的列表，原有的文件和结果都保留。
 4. 长按应用图标可以直接进入“解锁”或“加密”。
 
 ### macOS
@@ -185,6 +185,7 @@ PDF 里的密码是字节串，同样的文字在不同软件里可能被存成�
 - **不支持证书加密**（公钥安全处理器）、第三方插件或 DRM 的加密，以及未知的加密修订；这些文件会报告为“不支持的加密方式”。
 - **损坏的文件**：能修复的会修复并注明。加密的文件如果在下载中途被截断、丢了文件尾，会被报告为“文件已损坏”而不是被当作未加密文件处理；个别同样丢了文件尾的未加密文件也会因此被拒绝（详见 [engine/README.md](engine/README.md) 的 “Known limits”）。
 - 从其他应用分享过来的文件会先暂存在浏览器的缓存存储里，应用取走后即删除；15 分钟内没有被取走的不会再交给应用。暂存期间，设备的存储空间需要容得下整个文件。
+- **向已经打开的应用分享。** 在 Android 上，分享的文件会加进打开着的列表：浏览器为这次分享发起的页面跳转由 service worker 接下，页面不会重新加载。这一点只在 Chromium 里按 Chrome 的做法模拟验证过，没有在手机上试过；浏览器不指明被跳转的是哪个窗口时，应用会像新打开时那样重新加载，未保存的结果随之丢失。桌面版 Chromium（ChromeOS、Windows）只把已打开的窗口切到前台，并不把文件交给应用；应用会提示没有收到，请在窗口里选择、拖入或粘贴文件。另外，按 Chromium 的源代码，在 Android 上应用开着时使用图标上的快捷方式（“解锁”“加密”）会重新加载应用，请先保存结果。
 - 加密时设置的密码会在内存中保留到结果被清空为止，以便在结果面板里查看和复制；为已有保护的文件重新加密时，它原来的密码也会在内存中保留到那时（不显示）。清空列表或关闭页面后即丢弃。
 
 ## 部署自己的副本
@@ -408,7 +409,7 @@ The steps below describe how the browsers are documented to behave. In this proj
 
 1. Open the address of the app in Chrome.
 2. Press “Install” in the top bar when it appears; otherwise open the Chrome menu and choose “Add to Home screen” or “Install app”. Settings has the same entry.
-3. From then on, choose “Share” on a PDF in another app (Files, mail, a messenger) and pick “PDF Key” in the share sheet: the file appears in the app’s list.
+3. From then on, choose “Share” on a PDF in another app (Files, mail, a messenger) and pick “PDF Key” in the share sheet: the file appears in the app’s list. If the app is already open, the file joins the list that is there, and nothing in it is lost.
 4. A long press on the app icon leads straight to Unlock or Lock.
 
 ### macOS
@@ -495,6 +496,7 @@ A PDF password is a byte string, and the same text may have been stored as diffe
 - **No certificate encryption** (public-key security handler), no encryption by third-party plug-ins or DRM, and no unknown encryption revisions; such files are reported as “Unsupported encryption”.
 - **Damaged files**: what can be repaired is repaired, with a note. An encrypted file that was cut off during a download and lost its end is reported as “File is damaged” instead of being taken for an unencrypted one; a few unusual unencrypted files that lost their end as well are refused for the same reason (see “Known limits” in [engine/README.md](engine/README.md)).
 - Files shared from another app are parked in the browser’s cache storage and deleted as soon as the app has collected them; files not collected within 15 minutes are no longer handed to the app. While a file is parked, the device needs room for all of it.
+- **Sharing to the app while it is open.** On Android the shared files join the open list: the service worker takes the navigation the browser makes for the share, and the page is not loaded again. This has been verified in Chromium only, by imitating what Chrome does, and not on a phone; where a browser does not say which window it is navigating, the app is loaded anew as on a fresh start, and results that were not saved are lost. Desktop Chromium (ChromeOS, Windows) only brings the open window to the front and hands the files to nobody; the app says that nothing arrived, and the files have to be chosen, dropped or pasted in the window. Also, according to Chromium’s source code, using one of the icon’s shortcuts (Unlock, Lock) on Android while the app is open loads the app anew: save your results first.
 - The password set for locking stays in memory until the results are cleared, so that the result panel can show and copy it; when an already protected file is locked again, its previous password stays in memory until then as well, never shown. Clearing the list or closing the page drops them.
 
 ## Deploying your own copy

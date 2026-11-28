@@ -35,9 +35,11 @@ export function previousBuildsCache(scope: string): string {
 
 /**
  * Copies from the precache every file that the build being installed does not have. Call it
- * while the new version installs: the precache is then still that of the running version.
- * `inNewBuild` says whether the new build has a file at an address. Returns the number of files
- * kept.
+ * while the new version installs: the precache is then still that of the running version; and
+ * call it when the files of the new version are stored, so that on a device that is nearly full
+ * the room goes to them. `inNewBuild` says whether the new build has a file at an address.
+ * Returns the number of files kept. If a copy cannot be stored, the copies of this call are
+ * taken back and the error is passed on: half a build is of no use, and the room is.
  */
 export async function keepPreviousBuild(
   storage: CacheStorage,
@@ -55,24 +57,31 @@ export async function keepPreviousBuild(
       !inNewBuild(request.url),
   );
   if (superseded.length === 0) return 0;
-  const kept = await storage.open(previousBuildsCache(scope));
-  let count = 0;
-  for (const request of superseded) {
-    const response = await precache.match(request);
-    if (!response) continue;
-    const headers = new Headers(response.headers);
-    headers.set(HEADER_RETIRED, String(now));
-    await kept.put(
-      request,
-      new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      }),
-    );
-    count++;
+  const name = previousBuildsCache(scope);
+  const kept = await storage.open(name);
+  const copied: Request[] = [];
+  try {
+    for (const request of superseded) {
+      const response = await precache.match(request);
+      if (!response) continue;
+      const headers = new Headers(response.headers);
+      headers.set(HEADER_RETIRED, String(now));
+      copied.push(request);
+      await kept.put(
+        request,
+        new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        }),
+      );
+    }
+  } catch (error) {
+    await Promise.all(copied.map((request) => kept.delete(request).catch(() => false)));
+    if ((await kept.keys()).length === 0) await storage.delete(name);
+    throw error;
   }
-  return count;
+  return copied.length;
 }
 
 /** The kept file of an earlier build that answers `request`, if there is one. */
@@ -87,18 +96,25 @@ export async function matchPreviousBuild(
 }
 
 /**
- * Drops kept files that nothing can ask for any more. Call it when a version takes over, with
- * the number of windows of the app that are open: without a window there is no old code left.
+ * Drops kept files that nothing can ask for any more. `windows` is the number of windows of the
+ * app that may run an earlier build; without one there is no old code left. Call it
+ *
+ * - when a version takes over, with every window that is open;
+ * - when a page has loaded, with the windows other than that one and with `inRunningBuild`,
+ *   which says whether an address belongs to the build of the worker that served the page. The
+ *   page runs that build. If it is alone, only files of that build can still be asked for:
+ *   those that a version which is installing or waiting has set aside for this very page.
  */
 export async function prunePreviousBuilds(
   storage: CacheStorage,
   scope: string,
   windows: number,
   now = Date.now(),
+  inRunningBuild?: (url: string) => boolean,
 ): Promise<void> {
   const name = previousBuildsCache(scope);
   if (!(await storage.has(name))) return;
-  if (windows === 0) {
+  if (windows === 0 && !inRunningBuild) {
     await storage.delete(name);
     return;
   }
@@ -107,7 +123,8 @@ export async function prunePreviousBuilds(
   let left = requests.length;
   for (const request of requests) {
     const retired = Number((await kept.match(request))?.headers.get(HEADER_RETIRED));
-    if (Number.isFinite(retired) && now - retired <= PREVIOUS_BUILD_MAX_AGE_MS) continue;
+    const young = Number.isFinite(retired) && now - retired <= PREVIOUS_BUILD_MAX_AGE_MS;
+    if (young && (windows > 0 || inRunningBuild?.(request.url))) continue;
     await kept.delete(request);
     left--;
   }

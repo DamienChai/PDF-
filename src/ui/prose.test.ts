@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { en } from '../i18n/en';
 import type { MessageValue } from '../i18n/types';
 import { zhCN } from '../i18n/zh-CN';
-import { splitLongTail, splitTail } from './prose';
+import { splitKept, splitLongTail, splitTail } from './prose';
 
 /** Every text of a catalogue: a message with plural forms contributes each of them. */
 function texts(catalogue: Record<string, MessageValue>): string[] {
@@ -75,6 +75,46 @@ describe('splitLongTail', () => {
     expect(splitLongTail('也会被加密。')).toEqual(['也会被加密。', '']);
     expect(splitLongTail('（已过时）')).toEqual(['（已过时）', '']);
     expect(splitLongTail('version 3 (AGPL-3.0).')).toEqual(['version 3 (AGPL-3.0).', '']);
+  });
+});
+
+describe('splitKept: how the pieces are set', () => {
+  /** Near enough the width in ems: Han and full-width punctuation 1, everything else half. */
+  const width = (text: string): number =>
+    [...text].reduce((sum, char) => sum + (/[\u2e80-\u9fff\uff00-\uffef]/.test(char) ? 1 : 0.5), 0);
+
+  it('sets a short last clause without line breaks, and of a long one its last words', () => {
+    expect(splitKept(zhCN['lock.algorithm.aes-128.description'])).toMatchObject({
+      clause: '最多 32 个字符',
+      end: '',
+      tight: 'clause',
+    });
+    expect(splitKept(zhCN['lock.warning'])).toEqual({
+      free: '请牢记密码。密码一旦遗忘就无法找回，',
+      clause: '文件也将',
+      end: '无法打开。',
+      tight: 'end',
+    });
+    expect(splitKept('密码不正确')).toMatchObject({ clause: '', end: '', tight: null });
+  });
+
+  it('sets nothing without line breaks that a narrow column could not hold', () => {
+    const pieces = texts(zhCN).map((text) => {
+      const { clause, end, tight } = splitKept(text);
+      return tight === 'clause' ? clause : tight === 'end' ? end : '';
+    });
+    expect(pieces.filter((piece) => piece !== '').length).toBeGreaterThan(40);
+    for (const piece of pieces) expect(width(piece), piece).toBeLessThanOrEqual(10);
+    // A long clause with nothing to split it at wraps where it has to.
+    const unbroken = `前面的话，后面是一个很长很长很长很长很长的地址${'x'.repeat(40)}`;
+    expect(splitKept(unbroken).tight).toBeNull();
+  });
+
+  it('changes no text', () => {
+    for (const text of [...texts(zhCN), ...texts(en)]) {
+      const { free, clause, end } = splitKept(text);
+      expect(free + clause + end).toBe(text);
+    }
   });
 });
 

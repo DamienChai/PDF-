@@ -551,7 +551,11 @@ export interface Summary {
   phase: WorkspacePhase;
   total: number;
   analysing: number;
-  /** Files the primary action would process. */
+  /**
+   * Files the primary action would process. Unlock: with a shared password every locked file,
+   * without one the files whose own card holds a password (all of them while none does: that is
+   * what the button will do once a password is typed), plus those that need none.
+   */
   actionable: number;
   /**
    * Lock: finished files that are locked again by the next run, because they were made with
@@ -602,13 +606,15 @@ export interface SummaryItem {
   run: Run;
   /** Lock mode: the card's current-password field is filled in. */
   hasCurrentPassword: boolean;
+  /** Unlock mode: the card shows a field of its own, and it is filled in. */
+  hasOwnPassword?: boolean;
   /** Lock mode: the result was made with other settings than the ones about to be submitted. */
   outdated?: boolean;
 }
 
 export interface SummaryContext {
   mode: Mode;
-  /** Unlock: there is a password to try, in the shared field or in a card's own. */
+  /** Unlock: the shared field holds a password. A card's own is `SummaryItem.hasOwnPassword`. */
   hasUnlockPassword: boolean;
   unlockRejected: boolean;
   capabilities: SaveCapabilities;
@@ -630,6 +636,8 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
   let done = 0;
   let failed = 0;
   let locked = 0;
+  /** Unlock: locked files whose own card holds a password. */
+  let ownPasswords = 0;
   let restricted = 0;
   let notEncrypted = 0;
   let lockReady = 0;
@@ -669,8 +677,12 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
       case 'wrong-password':
         rejected++;
         // Lock mode: the rejected password has to be corrected on the card first.
-        if (mode === 'unlock') locked++;
-        else lockWaiting++;
+        if (mode === 'unlock') {
+          locked++;
+          if (item.hasOwnPassword) ownPasswords++;
+        } else {
+          lockWaiting++;
+        }
         break;
       case 'restricted':
         restricted++;
@@ -696,7 +708,10 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
   const formInPlay = mixed || lockReady + lockWaiting + analysing + processing > 0;
   const relock = formInPlay ? outdated : 0;
   const lockable = lockReady + relock;
-  const actionable = mode === 'unlock' ? locked + restricted : lockable;
+  // Unlock: a shared password is tried on every locked file; without one, a press tries the
+  // cards that hold a password of their own and leaves the others alone.
+  const tried = context.hasUnlockPassword || ownPasswords === 0 ? locked : ownPasswords;
+  const actionable = mode === 'unlock' ? tried + restricted : lockable;
   const needPassword = mode === 'unlock' ? locked : lockWaiting;
   const busy = analysing > 0 || processing > 0;
 
@@ -708,7 +723,7 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
             kind: 'unlock',
             label: countLabel(actionable, 'action.unlock'),
             count: actionable,
-            enabled: !busy && context.hasUnlockPassword,
+            enabled: !busy && (context.hasUnlockPassword || ownPasswords > 0),
           }
         : {
             kind: 'remove-restrictions',

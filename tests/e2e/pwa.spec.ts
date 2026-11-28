@@ -63,14 +63,21 @@ async function install(app: App, url = './'): Promise<void> {
   await app.expectToast('toast.offlineReady');
 }
 
-/** Sends files to the manifest's share target the way the Android share sheet does. */
-async function share(page: Page, paths: readonly string[]): Promise<void> {
+/**
+ * Sends files to the manifest's share target the way the Android share sheet does: a POST that
+ * navigates the window. `from` says what the window shows when the share arrives: nothing yet
+ * (`about:blank`: the app was not running), what it shows now (`here`: the installed app is
+ * open, and Android navigates that window), or another address.
+ */
+async function share(page: Page, paths: readonly string[], from = 'about:blank'): Promise<void> {
   const { url, manifest } = await readManifest(page);
   const target = manifest.share_target;
   expect(target.method).toBe('POST');
   expect(target.enctype).toBe('multipart/form-data');
+  if (from !== 'here') await page.goto(from);
   await page.evaluate(
     ({ action, field }) => {
+      document.getElementById('e2e-share')?.remove();
       const form = document.createElement('form');
       form.id = 'e2e-share';
       form.method = 'post';
@@ -87,6 +94,17 @@ async function share(page: Page, paths: readonly string[]): Promise<void> {
   );
   await page.locator('#e2e-share input').setInputFiles([...paths]);
   await page.evaluate(() => (document.getElementById('e2e-share') as HTMLFormElement).submit());
+}
+
+/** Number of entries in the cache shared files travel through. */
+async function parkedEntries(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    const names = (await caches.keys()).filter((name) => name.includes('incoming'));
+    const counts = await Promise.all(
+      names.map(async (name) => (await (await caches.open(name)).keys()).length),
+    );
+    return counts.reduce((sum, count) => sum + count, 0);
+  });
 }
 
 /**
@@ -295,6 +313,16 @@ test.describe('the production build', () => {
     });
     await expect(app.modeOption('lock')).toBeChecked();
     await app.expectState('opened-with.pdf', 'encrypted', 'lock');
+
+    // A share to the running app on desktop Chromium: the window is focused and told the
+    // address of the share target, but the files are sent nowhere. The app says so.
+    await page.evaluate(() => {
+      const scope = window as unknown as { e2eLaunch(params: unknown): void };
+      scope.e2eLaunch({ targetURL: new URL('./share-target', location.href).href, files: [] });
+    });
+    await app.expectToast('toast.shareLost');
+    await expect(app.cards).toHaveCount(1);
+    await expect(app.modeOption('lock')).toBeChecked();
   });
 });
 
@@ -403,18 +431,62 @@ test.describe('service worker', () => {
     await unlockAndVerifyBatch(app);
 
     // Nothing is left behind in the hand-over cache, and a reload starts empty.
-    expect(
-      await page.evaluate(async () => {
-        const names = (await caches.keys()).filter((name) => name.includes('incoming'));
-        const counts = await Promise.all(
-          names.map(async (name) => (await (await caches.open(name)).keys()).length),
-        );
-        return counts.reduce((sum, count) => sum + count, 0);
-      }),
-    ).toBe(0);
+    expect(await parkedEntries(page)).toBe(0);
     await page.reload();
     await app.ready();
     await expect(app.cards).toHaveCount(0);
+  });
+
+  test('a share into the running app joins the list, and nothing that is open is lost', async ({
+    app,
+    page,
+    issues,
+  }) => {
+    // The browser drops the navigation that carried the share: that is how the page stays.
+    issues.allow(/^request failed: POST .*\/share-target \(net::ERR_ABORTED\)$/);
+    await install(app);
+    await app.addFixtures('aes-256-r6.pdf', 'aes-128-r4.pdf');
+    await app.analysed(2);
+    await app.unlockWith('user');
+    await app.expectState('aes-256-r6.pdf', 'done');
+    await app.expectState('aes-128-r4.pdf', 'done');
+    await page.evaluate(() => {
+      (window as unknown as { e2eSamePage?: boolean }).e2eSamePage = true;
+    });
+
+    await share(page, [fixturePath('owner-only-r6.pdf'), fixturePath('rc4-40-r2.pdf')], 'here');
+    await app.expectState('owner-only-r6.pdf', 'restricted');
+    await app.expectState('rc4-40-r2.pdf', 'needs-password');
+    // The page was not loaded again: the results that were not saved yet are still there.
+    await expect(app.cards).toHaveCount(4);
+    await app.expectState('aes-256-r6.pdf', 'done');
+    await app.expectState('aes-128-r4.pdf', 'done');
+    expect(
+      await page.evaluate(() => (window as unknown as { e2eSamePage?: boolean }).e2eSamePage),
+    ).toBe(true);
+    expect(new URL(page.url()).search).toBe('');
+    expect(await parkedEntries(page)).toBe(0);
+
+    // And again: files shared one after the other add up to a batch.
+    await share(page, [fixturePath('plain.pdf')], 'here');
+    await app.expectState('plain.pdf', 'not-encrypted');
+    await expect(app.cards).toHaveCount(5);
+    await app.unlockWith('user');
+    await app.expectState('rc4-40-r2.pdf', 'done');
+    await app.expectState('owner-only-r6.pdf', 'done');
+    await expect(app.dock).toContainText(app.t('status.unlocked', { count: 4 }));
+  });
+
+  test('a share into a window that shows something else than the app opens the app there', async ({
+    app,
+    page,
+  }) => {
+    await install(app);
+    // The licence notices are a file of the app's folder, but not the app.
+    await share(page, [fixturePath('aes-256-r6.pdf')], './licenses.txt');
+    await app.ready();
+    await unlockAndVerify(app, 'aes-256-r6.pdf');
+    expect(new URL(page.url()).search).toBe('');
   });
 
   test('shared files of any size arrive whole, also beyond what one cache entry holds', async ({
@@ -460,15 +532,7 @@ test.describe('service worker', () => {
     expect(original.size).toBeGreaterThanOrEqual(pages);
     expect([...original].filter((hash) => !produced.has(hash))).toEqual([]);
     // Nothing is left behind in the hand-over cache.
-    expect(
-      await page.evaluate(async () => {
-        const names = (await caches.keys()).filter((name) => name.includes('incoming'));
-        const counts = await Promise.all(
-          names.map(async (name) => (await (await caches.open(name)).keys()).length),
-        );
-        return counts.reduce((sum, count) => sum + count, 0);
-      }),
-    ).toBe(0);
+    expect(await parkedEntries(page)).toBe(0);
   });
 
   test('a share that cannot be kept opens the app with a message, not an empty screen', async ({
@@ -727,6 +791,62 @@ test.describe('under a sub-path, as on GitHub Pages', () => {
     await otherReloaded;
     await other.ready();
     await expect(other.chooseButton).toBeVisible();
+  });
+
+  test('after an update in the only window, nothing of the build before stays on the device', async ({
+    app,
+    page,
+    context,
+  }) => {
+    /** Files that are kept for windows of earlier builds, by name. */
+    const kept = (): Promise<string[]> =>
+      page.evaluate(async () => {
+        const names = (await caches.keys()).filter((name) => name.includes('previous-builds'));
+        const lists = await Promise.all(
+          names.map(async (name) => (await (await caches.open(name)).keys()).map((r) => r.url)),
+        );
+        return lists.flat().map((url) => url.slice(url.lastIndexOf('/') + 1));
+      });
+    await install(app);
+    await app.toasts.getByRole('button', { name: app.t('toast.dismiss'), exact: true }).click();
+    expect(await kept()).toEqual([]);
+
+    // A release that renamed every hashed file. While it waits, the files of the running build
+    // are set aside: this window may go on with them after another one has taken the update.
+    await context.addCookies([{ name: BUILD_COOKIE, value: 'next', url: SUBPATH_URL }]);
+    await publish(page, context, 'renamed');
+    await app.expectToast('toast.update');
+    const waiting = await kept();
+    expect(waiting.some((name) => /^worker-[\w-]+\.js$/.test(name))).toBe(true);
+    expect(waiting.some((name) => /^pdfx-[\w-]+\.wasm$/.test(name))).toBe(true);
+    // A reload while the new version waits loads the running build again, and keeps them.
+    await page.reload();
+    await app.ready();
+    await controlled(app);
+    await app.expectToast('toast.update');
+    await page.waitForTimeout(500);
+    expect((await kept()).sort()).toEqual([...waiting].sort());
+
+    // "Refresh": this window, the only one, now runs the new build. Nothing can ask for the old
+    // files any more, and they go without waiting for another release.
+    const reloaded = page.waitForEvent('load');
+    await app.toasts
+      .getByRole('button', { name: app.t('toast.update.action'), exact: true })
+      .click();
+    await reloaded;
+    await app.ready();
+    await controlled(app);
+    await expect.poll(kept).toEqual([]);
+
+    // The new build is whole: it works without a network.
+    await context.setOffline(true);
+    await page.reload();
+    await app.ready();
+    await app.addFixtures('aes-256-r6.pdf');
+    await unlockAndVerify(app, 'aes-256-r6.pdf');
+    expect(page.workers().map((worker) => worker.url())).toEqual([
+      expect.stringMatching(/\/assets\/worker-[\w-]+\.next\.js$/),
+    ]);
   });
 
   test('a window left on the old build keeps its engine when a release renames the engine files', async ({

@@ -155,3 +155,52 @@ test.describe('accessibility (axe)', () => {
     await audit(app, 'details with a result');
   });
 });
+
+test.describe('what a screen reader is given', () => {
+  test('the names and descriptions of controls are the messages themselves', async ({
+    app,
+    page,
+    context,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'the accessibility tree is read through DevTools');
+    await app.open();
+    await app.switchMode('lock');
+    await app.addFixtures('plain.pdf');
+    await app.expectState('plain.pdf', 'ready', 'lock');
+    await app.openAdvanced();
+
+    const devtools = await context.newCDPSession(page);
+    const { nodes } = (await devtools.send('Accessibility.getFullAXTree')) as {
+      nodes: {
+        ignored: boolean;
+        role?: { value: string };
+        name?: { value: string };
+        description?: { value: string };
+      }[];
+    };
+    const controls = nodes.filter((node) => !node.ignored);
+    // (A no-break space inside a clause is the space of the message.)
+    const spaces = (text: string | undefined): string => (text ?? '').replaceAll('\u00a0', ' ');
+    const described = (role: string, name: string): string =>
+      spaces(
+        controls.find((node) => node.role?.value === role && node.name?.value === name)?.description
+          ?.value,
+      );
+    // The end of an explanation is set as one piece (prose.tsx). In Chinese nothing separates
+    // it from the text before it, and nothing may: no space inside a sentence or a word.
+    expect(described('switch', app.t('lock.metadata.switch'))).toBe(
+      app.t('lock.metadata.description'),
+    );
+    expect(described('switch', app.t('lock.owner.switch'))).toBe(app.t('lock.owner.description'));
+    const radios = controls
+      .filter((node) => node.role?.value === 'radio')
+      .map((node) => spaces(node.name?.value));
+    for (const key of [
+      'lock.algorithm.aes-256.description',
+      'lock.algorithm.aes-128.description',
+    ] as const) {
+      expect(radios.filter((name) => name.endsWith(app.t(key)))).toHaveLength(1);
+    }
+  });
+});

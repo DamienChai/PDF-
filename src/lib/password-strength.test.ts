@@ -212,6 +212,74 @@ describe('estimateStrength', () => {
     expect(separated).toBeLessThan(plain + 5);
   });
 
+  it('is not fooled by two words with a separator and a year, or by decorations elsewhere', () => {
+    // First name, last name, year: the most common shape of a personal password.
+    for (const password of [
+      'John.Smith.1985',
+      'john.smith@1985',
+      'my.company.2025',
+      'TheCompany@2025',
+      'MyCompany@2025',
+      'john_smith1',
+    ]) {
+      const estimate = estimateStrength(password);
+      expect(estimate.score, password).toBeLessThanOrEqual(2);
+      expect(estimate.hints, password).toContain('name-or-word');
+    }
+    // One word: a separator behind the digits in front, symbols at the very start, and more
+    // than two separators change little.
+    for (const password of [
+      '2025@Company',
+      '2025-Company',
+      '@Company2025',
+      '#Company2025',
+      '!!Company2025',
+      'Company---2025',
+      'Company@#$2025',
+    ]) {
+      const estimate = estimateStrength(password);
+      expect(estimate.score, password).toBeLessThanOrEqual(1);
+      expect(estimate.hints, password).toContain('name-or-word');
+    }
+    // Words written together, each with its capital, are named as what they are.
+    expect(estimateStrength('HelloKitty@520').hints).toContain('name-or-word');
+
+    // What is added is worth what it is: little for a repeated separator, more for three
+    // different ones, and a second word about as much as the first.
+    const bits = (password: string): number => estimateStrength(password).bits;
+    expect(bits('Company---2025')).toBeGreaterThan(bits('Company-2025'));
+    expect(bits('Company---2025')).toBeLessThan(bits('Company-2025') + 4);
+    expect(bits('Company@#$2025')).toBeGreaterThan(bits('Company---2025') + 4);
+    expect(bits('John.Smith.1985')).toBeGreaterThan(bits('Smith.1985') + 15);
+  });
+
+  it('leaves passphrases and the same shapes made of random letters alone', () => {
+    // Three words and a number are a passphrase, if a short one.
+    expect(estimateStrength('correct-horse-battery-42').score).toBe(4);
+    expect(estimateStrength('tiger-lamp-orbit-42').score).toBeGreaterThanOrEqual(3);
+    const lowered = (passwords: string[], atLeast: number): number =>
+      passwords.filter((password) => estimateStrength(password).score < atLeast).length;
+    const chunks = (length: number, seed: number): string[] =>
+      randomStrings(LOWER, length, 1000, seed);
+    // Two random chunks of six letters, a dot, two digits: about 91 bits by brute force.
+    const second = chunks(6, 402);
+    const pairs = chunks(6, 401).map(
+      (first, index) => `${first}.${second[index]!}${10 + (index % 90)}`,
+    );
+    expect(lowered(pairs, 4)).toBeLessThan(30);
+    // A symbol, eight random letters, two digits: as often as the letters alone pass for a word.
+    const led = chunks(8, 403).map(
+      (letters, index) => `${'@#$!'[index % 4]!}${letters}${10 + (index % 90)}`,
+    );
+    expect(lowered(led, 2)).toBeLessThan(70);
+    // Random letters in two capitalised halves and three digits.
+    const camel = chunks(10, 404).map(
+      (letters, index) =>
+        `${letters[0]!.toUpperCase()}${letters.slice(1, 5)}${letters[5]!.toUpperCase()}${letters.slice(6)}${100 + (index % 900)}`,
+    );
+    expect(lowered(camel, 3)).toBeLessThan(10);
+  });
+
   it('sees a word through a letter or two replaced by look-alikes', () => {
     for (const password of ['Tr0ub4dor&3', 'Pass@word1', 'h0liday99', 'El3phant7!']) {
       const estimate = estimateStrength(password);

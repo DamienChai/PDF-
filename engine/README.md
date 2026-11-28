@@ -104,12 +104,17 @@ printable characters under an ASCII filter. In an encrypted file practically eve
 fails (a ciphertext passes the zlib test once in about a thousand times), in an unencrypted file
 practically none. The file is refused when the streams that fail are at least as many as those
 that pass. Only when no stream has such a filter are the unfiltered ones heard whose dictionary
-has nothing but `/Length` (content streams, CMaps, scripts): 16 to 256 bytes of data count as
-ciphertext if they look random (about half of the bytes with the high bit set, control characters
-among them, no value that keeps coming back) and do not begin with the signature of a file that
-is compressed in itself. Text in any encoding, tables of numbers and bitmaps do not look like
-that. Streams that are empty or hold only white space say nothing, and neither do images without
-a filter or streams under `/CCITTFaxDecode`, `/JBIG2Decode` and `/RunLengthDecode`.
+has nothing but `/Length` (content streams, CMaps, scripts), by their first 16 to 256 bytes, and
+each verdict needs evidence of its own. Data counts as written as it is if at least seven of
+eight bytes are printable ASCII or white space, or if it begins with the signature of a file
+that is compressed in itself. It counts as ciphertext if it looks random: about half of the
+bytes with the high bit set, control characters among them, no value that keeps coming back.
+Text in any encoding, tables of numbers and bitmaps do not look like that, but neither does one
+short ciphertext in ten (20 to 60 bytes, the page content of a scan), so data that shows neither
+sign counts as written only from 128 bytes on, where ciphertext is recognised all but three
+times in ten thousand; a shorter sample says nothing. Streams that are empty or hold only white
+space say nothing either, and neither do images without a filter or streams under
+`/CCITTFaxDecode`, `/JBIG2Decode` and `/RunLengthDecode`.
 
 A file in which nothing could be tested (it was cut off before its first page content, or has
 only streams of the kinds just named) is refused as well: nothing tells whether its strings are
@@ -180,8 +185,8 @@ committed. `.github/workflows/engine.yml` (manual trigger) rebuilds inside
 | `-O3 -flto`     |   1 179 948 | 407 090 | 4.4–4.5 s |
 
 LTO costs 14 % in size and gains nothing; `-Os` saves 57 KB over the wire for about 10 % of the
-throughput. The table was measured before the lost-trailer check existed, which adds 11 234
-bytes. Shipped now: 1 046 403 bytes raw, 378 874 gzip, 292 258 brotli; glue 9 623 bytes
+throughput. The table was measured before the lost-trailer check existed, which adds 11 448
+bytes. Shipped now: 1 046 617 bytes raw, 378 907 gzip, 292 101 brotli; glue 9 623 bytes
 (3 526 gzip).
 
 Where the time goes (profile of the 500 MB decrypt): 67 % in qpdf's table-based AES, 21 % in
@@ -191,7 +196,7 @@ elsewhere. A faster AES would need a SIMD implementation registered as a qpdf cr
 ## Checks
 
 ```sh
-npx vitest run src/engine                  # 739 tests, about 15 s
+npx vitest run src/engine                  # 742 tests, about 15 s
 python3 tests/fixtures/cross_check.py      # pikepdf + pypdf + native qpdf on 224 engine outputs
 node engine/browser-check/check.mjs        # 42 checks in Chromium
 node engine/bench.mjs                      # 100 MB and 500 MB
@@ -261,11 +266,17 @@ connect-src 'self'`. Without `'wasm-unsafe-eval'` every call rejects with `engin
   reported as `unsupported-encryption`.
 - The lost-trailer check errs on the side of refusing. Reported as `damaged` although they are
   not encrypted: a file that lost its trailer before its first page content began (nothing in
-  it can be tested, see above); one that embeds an encrypted PDF without compression (qpdf
-  would rebuild the document from the objects of both); one whose text spells out a complete
-  `/Encrypt 12 0 R` entry or encryption dictionary; one in which the streams that do not begin
-  the way their filter requires are at least as many as those that do.
+  it can be tested, see above); one with no stream under a telling filter whose `/Length`-only
+  streams are all shorter than 128 bytes and not text; one that embeds an encrypted PDF without
+  compression (qpdf would rebuild the document from the objects of both); one whose text spells
+  out a complete `/Encrypt 12 0 R` entry or encryption dictionary; one in which the streams
+  that do not begin the way their filter requires are at least as many as those that do.
 - The other way round, an encrypted file that lost its trailer is taken for an unencrypted one
   only if its ciphertext passes the tests: with a single `/FlateDecode` stream left that happens
-  about once in a thousand files, with two streams once in a million.
+  about once in a thousand files, with two streams once in a million. Where the only stream
+  that can be tested has no filter (a scan: one CCITT or JBIG2 image and a few dozen bytes of
+  page content), it happens less than once in ten thousand files, and about three times in ten
+  thousand if that content is 128 to 160 bytes long. One such scan in ten is refused because
+  nothing in it can be told (`tests/fixtures/truncated-scan-r3.pdf`), the others because their
+  content looks random.
 - A zero byte cannot be part of a password (qpdf's API takes C strings).

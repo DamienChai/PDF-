@@ -494,14 +494,13 @@ export function createJobsController(deps: JobsDependencies): JobsController {
           inspection: entry.inspection.value,
           run,
           hasCurrentPassword: entry.password.value !== '',
+          hasOwnPassword: mode === 'unlock' && ownPassword(entry) !== '',
           outdated: mode === 'lock' && run.result !== null && run.result.settings !== revision,
         };
       }),
       {
         mode,
-        hasUnlockPassword:
-          unlockPassword.value !== '' ||
-          (mode === 'unlock' && list.some((entry) => ownPassword(entry) !== '')),
+        hasUnlockPassword: unlockPassword.value !== '',
         unlockRejected: unlockRejected.value,
         capabilities: getCapabilities(),
         batch: { finished, total: ids.length },
@@ -880,11 +879,18 @@ export function createJobsController(deps: JobsDependencies): JobsController {
   async function finishBatch(mode: Mode): Promise<void> {
     if (!deps.settings.peek().autoSave) return;
     const ids = new Set(batches[mode].peek());
+    // Lock: only what was made with the settings submitted last. A file of the batch whose run
+    // was cancelled shows the result it had before again, and that one opens with a password
+    // that is no longer on screen: it is not handed out here either.
+    const made = mode === 'lock' ? lockSubmitted.peek() : null;
     const fresh = records
       .peek()
       .filter((entry) => ids.has(entry.id))
       .map((entry) => entry.runs[mode].peek().result)
-      .filter((result): result is EntryResult => result !== null && !result.saved);
+      .filter(
+        (result): result is EntryResult =>
+          result !== null && !result.saved && result.settings === made,
+      );
     if (fresh.length === 0) return;
     // Marked first, so that a second batch finishing meanwhile does not deliver them again.
     markSaved(mode, fresh);
@@ -1113,8 +1119,21 @@ export function createJobsController(deps: JobsDependencies): JobsController {
       } else {
         dropUnusedUnlockPassword();
         dropUnusedLockSettings();
+        dropLonelyRetryField();
       }
     });
+  }
+
+  /**
+   * Unlock: a file that is alone in the list is retried with the shared field. The phone shows
+   * it without a card, so a field of its own, and what was typed there, would be out of sight
+   * and still be tried by the main button.
+   */
+  function dropLonelyRetryField(): void {
+    const [only, ...others] = records.peek();
+    if (!only || others.length > 0) return;
+    only.retry.value = '';
+    if (only.runs.unlock.peek().ownField) patchRun(only, 'unlock', { ownField: false });
   }
 
   function clear(): void {

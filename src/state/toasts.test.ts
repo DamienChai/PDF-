@@ -199,6 +199,53 @@ describe('toast queue', () => {
     expect(keys()).toEqual([]);
   });
 
+  it('puts a background toast under what is on screen, and starts its time when it is seen', () => {
+    const { queue, advance, keys } = setup();
+    advance(171);
+    queue.show(msg('toast.folderLimit'));
+    advance(168);
+    queue.show(msg('toast.offlineReady'), { tone: 'success', background: true });
+    // Oldest first, and the last one is on screen: the notice the user has to read.
+    expect(keys()).toEqual(['toast.offlineReady', 'toast.folderLimit']);
+    advance(TOAST_DURATION_MS - 168 - 1);
+    expect(keys()).toEqual(['toast.offlineReady', 'toast.folderLimit']);
+    advance(1);
+    expect(keys()).toEqual(['toast.offlineReady']);
+    advance(TOAST_DURATION_MS - 1);
+    expect(keys()).toEqual(['toast.offlineReady']);
+    advance(1);
+    expect(keys()).toEqual([]);
+  });
+
+  it('starts the time of a background toast when what was above it is dismissed', () => {
+    const { queue, advance, keys, pending } = setup();
+    const error = queue.show(msg('toast.saveFailed'), { tone: 'error' });
+    const waiting = queue.show(msg('toast.offlineReady'), { background: true });
+    expect(pending()).toBe(1);
+    // Nothing a pointer does can start it early: it is not on screen.
+    queue.pause(waiting);
+    queue.resume(waiting);
+    expect(pending()).toBe(1);
+    advance(60);
+    queue.dismiss(error);
+    expect(keys()).toEqual(['toast.offlineReady']);
+    advance(TOAST_DURATION_MS - 1);
+    expect(keys()).toEqual(['toast.offlineReady']);
+    advance(1);
+    expect(keys()).toEqual([]);
+    expect(pending()).toBe(0);
+  });
+
+  it('shows a background toast like any other when nothing is on screen', () => {
+    const { queue, advance, keys } = setup();
+    queue.show(msg('toast.offlineReady'), { background: true });
+    // What comes later covers it, as it covers any toast.
+    queue.show(msg('toast.saved'));
+    expect(keys()).toEqual(['toast.offlineReady', 'toast.saved']);
+    advance(TOAST_DURATION_MS);
+    expect(keys()).toEqual([]);
+  });
+
   it('clears everything and cancels the timers', () => {
     const { queue, pending } = setup();
     queue.show(msg('toast.saved'));

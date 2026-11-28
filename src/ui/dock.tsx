@@ -25,19 +25,29 @@ function followUp(report: RunReport): void {
     return;
   }
   afterRender(() => {
-    if (report.refusal === 'password-required') {
-      focusQuietly(unlockField());
-    } else if (report.refusal === 'current-password-required' || report.rejected > 0) {
-      // One locked file: the shared field takes the retry. Several: the first card that needs it.
-      const shared = jobs.summary.peek().passwordError ? unlockField() : null;
-      const waiting = jobs.entries
+    const waiting = (): HTMLInputElement | null | undefined =>
+      jobs.entries
         .peek()
         .map((entry) => inlinePasswordField(entry.id))
         .find(
           (field) =>
             field !== null && (field.value === '' || field.matches('[aria-invalid="true"]')),
         );
-      focusQuietly(shared ?? waiting, true);
+    if (report.refusal === 'password-required') {
+      focusQuietly(unlockField());
+    } else if (report.refusal === 'current-password-required' || report.rejected > 0) {
+      // One locked file: the shared field takes the retry. Several: the first card that needs it.
+      const shared = jobs.summary.peek().passwordError ? unlockField() : null;
+      focusQuietly(shared ?? waiting(), true);
+    } else if (
+      report.done > 0 &&
+      mode.peek() === 'unlock' &&
+      jobs.summary.peek().needPassword > 0
+    ) {
+      // The passwords typed on some cards opened their files and others still wait: on to the
+      // next field, unless the user is in one already.
+      if (document.activeElement instanceof HTMLInputElement) return;
+      focusQuietly(waiting() ?? unlockField());
     }
   });
 }

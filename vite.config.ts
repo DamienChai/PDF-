@@ -245,8 +245,9 @@ const pwa = VitePWA({
       },
     ],
     // "Share" from another app (Android share sheet): the service worker receives this POST
-    // (src/pwa/sw.ts) and hands the files to the page (src/pwa/incoming.ts). Path and field name
-    // are repeated in src/pwa/share-stash.ts; a unit test keeps the two in step.
+    // (src/pwa/sw.ts) and hands the files to the page (src/pwa/incoming.ts), to the one that is
+    // open if the share navigates the window of a running app, as Chrome on Android does. Path
+    // and field name are repeated in src/pwa/share-stash.ts; a unit test keeps the two in step.
     share_target: {
       action: './share-target',
       method: 'POST',
@@ -257,7 +258,11 @@ const pwa = VitePWA({
     },
     // "Open with" on desktop: files arrive through window.launchQueue (src/pwa/incoming.ts).
     file_handlers: [{ action: './', accept: { 'application/pdf': ['.pdf'] } }],
-    // Opening a file or sharing while the app is running re-uses its window.
+    // Desktop Chromium: opening a file with the app, or one of its shortcuts, while it is running
+    // re-uses its window instead of loading the app again over the list. The price: for a share
+    // to the running app the window is only focused and the files are sent nowhere; the page
+    // says so (src/pwa/incoming.ts). Chrome on Android does not look at this for an installed
+    // app and navigates its window.
     launch_handler: { client_mode: 'focus-existing' },
   },
 });

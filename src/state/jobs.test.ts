@@ -594,15 +594,25 @@ describe('unlock: card states', () => {
     const [first, second, third] = h.jobs.entries.value;
     await h.jobs.retryUnlock(first!.id, 'also-wrong');
     expect(h.jobs.unlockPassword.value).toBe('');
-    expect(h.jobs.summary.value.primary).toMatchObject({ enabled: false });
-
-    h.jobs.setRetryPassword(first!.id, DEMO_PASSWORD);
-    expect(first!.retryPassword.value).toBe(DEMO_PASSWORD);
+    // Nothing to try yet: the button names every file a password would be tried on.
     expect(h.jobs.summary.value.primary).toMatchObject({
       label: { key: 'action.unlockCount', params: { count: 3 } },
-      enabled: true,
+      enabled: false,
+    });
+
+    // It counts the files a press will try: the cards that hold a password.
+    h.jobs.setRetryPassword(first!.id, DEMO_PASSWORD);
+    expect(first!.retryPassword.value).toBe(DEMO_PASSWORD);
+    expect(h.jobs.summary.value).toMatchObject({
+      actionable: 1,
+      needPassword: 3,
+      primary: { label: { key: 'action.unlock' }, count: 1, enabled: true },
     });
     h.jobs.setRetryPassword(second!.id, 'not-this-one');
+    expect(h.jobs.summary.value.primary).toMatchObject({
+      label: { key: 'action.unlockCount', params: { count: 2 } },
+      count: 2,
+    });
     const calls = h.engine.calls.process.length;
     expect(await h.jobs.runPrimary()).toMatchObject({ started: true, done: 1, rejected: 1 });
     // The card without a password of its own was left out.
@@ -619,9 +629,61 @@ describe('unlock: card states', () => {
 
     // A shared password is for every file that is still locked, whatever its card holds.
     h.jobs.setUnlockPassword('9999');
+    expect(h.jobs.summary.value.primary).toMatchObject({ count: 2, enabled: true });
     expect(await h.jobs.runPrimary()).toMatchObject({ done: 1, rejected: 1 });
     expect(h.states()).toEqual(['done', 'done', 'wrong-password']);
     expect(second!.retryPassword.value).toBe('');
+  });
+
+  it('g. counts files that only carry restrictions along with the cards that hold a password', async () => {
+    const h = createHarness({ engine: { scenarios: OTHER } });
+    await h.add('needs-password.pdf', 'other-password.pdf', 'owner-only.pdf');
+    h.jobs.setUnlockPassword('nope');
+    await h.jobs.unlockAll();
+    await h.add('owner-only-unrestricted.pdf');
+    h.jobs.setUnlockPassword('');
+    expect(h.states()).toEqual(['wrong-password', 'wrong-password', 'done', 'restricted']);
+    h.jobs.setRetryPassword(h.entry('other-password.pdf').id, '9999');
+    expect(h.jobs.summary.value.primary).toMatchObject({
+      kind: 'unlock',
+      label: { key: 'action.unlockCount', params: { count: 2 } },
+      enabled: true,
+    });
+    expect(await h.jobs.runPrimary()).toMatchObject({ done: 2, rejected: 0 });
+    expect(h.states()).toEqual(['wrong-password', 'done', 'done', 'done']);
+  });
+
+  it('g. the only file left in the list is retried with the shared field, not with what its card held', async () => {
+    const h = createHarness({ engine: { scenarios: OTHER } });
+    await h.add('needs-password.pdf', 'other-password.pdf');
+    h.jobs.setUnlockPassword('nope');
+    await h.jobs.unlockAll();
+    const [first, second] = h.jobs.entries.value;
+    h.jobs.setRetryPassword(first!.id, 'abc');
+    await h.jobs.retryUnlock(first!.id);
+    expect(first!.view.value.password).toMatchObject({ kind: 'retry' });
+    expect(first!.retryPassword.value).toBe('abc');
+
+    // A single file fills the stage on the phone and has no field of its own there.
+    h.jobs.remove(second!.id);
+    expect(first!.view.value).toMatchObject({ state: 'wrong-password', password: null });
+    expect(first!.retryPassword.value).toBe('');
+    expect(h.jobs.summary.value).toMatchObject({
+      passwordField: true,
+      primary: { label: { key: 'action.unlock' }, enabled: false },
+    });
+    const calls = h.engine.calls.process.length;
+    expect(await h.jobs.runPrimary()).toMatchObject({
+      started: false,
+      refusal: 'password-required',
+    });
+    expect(h.engine.calls.process).toHaveLength(calls);
+
+    // With company again, a rejected password gets the cards back.
+    await h.add('aes128.pdf');
+    h.jobs.setUnlockPassword('nope');
+    await h.jobs.unlockAll();
+    expect(first!.view.value.password).toMatchObject({ kind: 'retry' });
   });
 
   it('g. forgets what was typed on a card with the file', async () => {

@@ -34,7 +34,10 @@ Small PDFs for `src/engine/*.test.ts`, described by `manifest.json`.
   `truncated-early-r4.pdf` must be refused as `damaged`, never taken for unencrypted files. The
   same for `truncated-lzw-r2.pdf`: RC4-40, hand-written with LZW streams only (as scanners wrote
   them in the 1990s), cut off behind the last stream, so that no stream has a zlib header to
-  miss.
+  miss. And for `truncated-scan-r3.pdf`: RC4-128, one scanned page (a CCITT image and 36 bytes
+  of page content without a filter), cut off in front of the encryption dictionary. Its content
+  ciphertext holds no control character, as happens in one such file in ten: it does not look
+  like cipher output, and the engine must still not take the file for an unencrypted one.
 - Not PDFs: binary and text.
 - Unsupported: certificate security handler (`/Adobe.PubSec`), unknown revision (R7/V6).
 

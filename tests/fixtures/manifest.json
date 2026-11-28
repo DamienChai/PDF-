@@ -2490,6 +2490,15 @@
     "sha256": "4196856b7c790dd173ae4035d2ca502d7b98afb75681eff96fe1be220a3d50d6"
   },
   {
+    "file": "truncated-scan-r3.pdf",
+    "description": "RC4-128 (R3), a scanned page (CCITT image, 36 bytes of content without a filter), cut off before the encryption dictionary",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 574,
+    "sha256": "b04324c1db2de3fa30f5a41b46f4fcf0953d0878b85f232043271178bac0b012"
+  },
+  {
     "file": "not-a-pdf.bin",
     "description": "Not a PDF at all",
     "kind": "error",

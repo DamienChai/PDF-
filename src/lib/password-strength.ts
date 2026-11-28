@@ -230,11 +230,16 @@ function pinyinPatterns(chars: readonly string[]): Pattern[] {
   return patterns;
 }
 
-// --- A word decorated with digits ("Company2025", "Company@2025", "2025Company") -----------------
+// --- Words decorated with digits ("Company2025", "Company@2025", "John.Smith.1985") --------------
 
 const MAX_WORD_LENGTH = 16;
 const MAX_WORD_DIGITS = 8;
-const MAX_SEPARATORS = 2;
+/** "John.Smith", "MyCompany": more parts than this and it is a passphrase, judged as it comes. */
+const MAX_WORD_PARTS = 3;
+/** Symbols between the last word and the digits behind it; more than two cost more each. */
+const MAX_SEPARATORS = 4;
+const USUAL_SEPARATORS = 2;
+const MAX_LEADING_SYMBOLS = 2;
 const MAX_TRAILING_SYMBOLS = 2;
 /** "Tr0ub4dor": more replaced letters than this and it is no longer taken for a word. */
 const MAX_WORD_SUBSTITUTIONS = 2;
@@ -245,6 +250,10 @@ function isLetter(char: string | undefined): char is string {
   if (char === undefined) return false;
   const charClass = classOf(char);
   return charClass === 'lower' || charClass === 'upper';
+}
+
+function isSymbol(char: string | undefined): char is string {
+  return char !== undefined && classOf(char) === 'symbol';
 }
 
 /**
@@ -264,63 +273,147 @@ function looksLikeWord(letters: readonly string[], spelled: readonly string[]): 
   );
 }
 
-/**
- * The whole password is one word with decorations: digits in front of it, or behind it with or
- * without a separator ("Company@2025"), and at most a symbol or two at the very end. These are
- * the shapes every guessing tool derives from its word and name lists ("append a year", "append
- * @123", "prepend digits"), also for a word with a letter or two replaced by look-alikes
- * ("Tr0ub4dor&3"). The word then counts as an entry of such a list (a few million entries,
- * somewhat more for long words), not as letters chosen at random. Digits and trailing symbols
- * are judged separately.
- */
-function wordPatterns(chars: readonly string[]): Pattern[] {
-  let start = 0;
-  while (isDigit(chars[start])) start++;
-  // The word: letters, possibly with look-alikes among them, from a letter to a letter.
+/** A word counts as an entry of a list of a few million, somewhat more for long words. */
+function wordBits(letters: readonly string[]): number {
+  return (
+    Math.min(letters.length * Math.log2(26), 16 + 0.75 * letters.length) +
+    capitalisationBits(letters)
+  );
+}
+
+/** The symbols between the last word and the digits: the usual one or two, a repeat, or more. */
+function separatorBits(symbols: readonly string[]): number {
+  if (symbols.length <= USUAL_SEPARATORS) return symbols.length * SEPARATOR_BITS;
+  if (symbols.every((char) => char === symbols[0])) {
+    return SEPARATOR_BITS + Math.log2(symbols.length);
+  }
+  return (
+    USUAL_SEPARATORS * SEPARATOR_BITS +
+    (symbols.length - USUAL_SEPARATORS) * Math.log2(CLASS_SIZE.symbol)
+  );
+}
+
+interface Words {
+  /** Where the last word ends (exclusive). */
+  end: number;
+  bits: number;
+}
+
+/** One word from `start`, possibly with a letter or two replaced by look-alikes. */
+function singleWord(chars: readonly string[], start: number, lookAlikes: boolean): Words | null {
+  // Letters, possibly with look-alikes among them, from a letter to a letter.
   let end = start;
   while (end < chars.length && (isLetter(chars[end]) || chars[end]! in LEET)) end++;
   while (end > start && !isLetter(chars[end - 1])) end--;
-  let separatorsEnd = end;
-  while (separatorsEnd < chars.length && classOf(chars[separatorsEnd]!) === 'symbol') {
-    separatorsEnd++;
-  }
-  let digitsEnd = separatorsEnd;
-  while (isDigit(chars[digitsEnd])) digitsEnd++;
-  let symbolsEnd = digitsEnd;
-  while (symbolsEnd < chars.length && classOf(chars[symbolsEnd]!) === 'symbol') symbolsEnd++;
-
   const length = end - start;
-  const digits = digitsEnd - separatorsEnd;
-  // Without digits behind them the "separators" are the symbols at the end.
-  const separators = digits > 0 ? separatorsEnd - end : 0;
-  if (
-    symbolsEnd !== chars.length ||
-    !isLetter(chars[start]) ||
-    length < 3 ||
-    length > MAX_WORD_LENGTH ||
-    start > MAX_WORD_DIGITS ||
-    digits > MAX_WORD_DIGITS ||
-    start + digits < 1 ||
-    separators > MAX_SEPARATORS ||
-    symbolsEnd - digitsEnd + (digits > 0 ? 0 : separatorsEnd - end) > MAX_TRAILING_SYMBOLS
-  ) {
-    return [];
-  }
-
+  if (length < 3 || length > MAX_WORD_LENGTH) return null;
   const word = chars.slice(start, end);
   const letters = word.filter(isLetter);
   const substitutions = word.length - letters.length;
-  // Behind digits, look-alikes are not accepted: random letters and digits would qualify too often.
-  if (substitutions > (start === 0 ? MAX_WORD_SUBSTITUTIONS : 0)) return [];
+  if (substitutions > (lookAlikes ? MAX_WORD_SUBSTITUTIONS : 0)) return null;
   const lower = word.map((char) => char.toLowerCase());
   const spellings = substitutions === 0 ? [lower] : [unleet(lower, 'l'), unleet(lower, 'i')];
-  if (!spellings.some((spelled) => looksLikeWord(letters, spelled))) return [];
-  const bits =
-    Math.min(length * Math.log2(26), 16 + 0.75 * length) +
-    capitalisationBits(letters) +
-    substitutions * SUBSTITUTION_BITS +
-    separators * SEPARATOR_BITS;
-  return [{ start, end: end + separators, bits, kind: 'word' }];
+  if (!spellings.some((spelled) => looksLikeWord(letters, spelled))) return null;
+  return {
+    end,
+    bits:
+      Math.min(length * Math.log2(26), 16 + 0.75 * length) +
+      capitalisationBits(letters) +
+      substitutions * SUBSTITUTION_BITS,
+  };
+}
+
+/**
+ * Two or three words from `start`: joined by one symbol each ("john.smith", "my_company"), or
+ * written together with a capital where the next one begins ("HelloKitty").
+ */
+function severalWords(chars: readonly string[], start: number): Words | null {
+  let bits = 0;
+  let parts = 0;
+  let at = start;
+  for (;;) {
+    let end = at;
+    while (isLetter(chars[end])) {
+      // A capital behind a small letter begins the next word.
+      if (end > at && classOf(chars[end]!) === 'upper' && classOf(chars[end - 1]!) === 'lower') {
+        break;
+      }
+      end++;
+    }
+    const letters = chars.slice(at, end);
+    const spelled = letters.map((char) => char.toLowerCase());
+    if (letters.length < 2 || letters.length > MAX_WORD_LENGTH) return null;
+    if (!looksLikeWord(letters, spelled) || ++parts > MAX_WORD_PARTS) return null;
+    bits += wordBits(letters);
+    if (isLetter(chars[end])) {
+      at = end;
+    } else if (isSymbol(chars[end]) && isLetter(chars[end + 1])) {
+      bits += SEPARATOR_BITS;
+      at = end + 1;
+    } else {
+      // Two letters alone are no word; next to another word they are ("my", "Li").
+      return parts > 1 && end - start >= 6 ? { end, bits } : null;
+    }
+  }
+}
+
+/**
+ * The whole password is a word, or two or three of them, with decorations: digits in front or
+ * behind, with or without a separator ("Company@2025", "2025-Company", "John.Smith.1985"), a
+ * symbol or two at the very start or end. These are the shapes every guessing tool derives from
+ * its word and name lists ("append a year", "append @123", "prepend digits", "first name, dot,
+ * last name"), also for a word with a letter or two replaced by look-alikes ("Tr0ub4dor&3"). A
+ * word then counts as an entry of such a list, not as letters chosen at random. Digits and
+ * trailing symbols are judged separately.
+ */
+function wordPatterns(chars: readonly string[]): Pattern[] {
+  let leading = 0;
+  while (isSymbol(chars[leading])) leading++;
+  let start = leading;
+  while (isDigit(chars[start])) start++;
+  const digitsBefore = start - leading;
+  // "2025-Company": one separator between the digits in front and the word.
+  const joined = digitsBefore > 0 && isSymbol(chars[start]) && isLetter(chars[start + 1]);
+  if (joined) start++;
+  if (leading > MAX_LEADING_SYMBOLS || digitsBefore > MAX_WORD_DIGITS || !isLetter(chars[start])) {
+    return [];
+  }
+
+  // Behind digits, look-alikes are not accepted: random letters and digits would qualify too often.
+  const candidates = [singleWord(chars, start, digitsBefore === 0), severalWords(chars, start)];
+  const patterns: Pattern[] = [];
+  for (const words of candidates) {
+    if (!words) continue;
+    const { end } = words;
+    let separatorsEnd = end;
+    while (isSymbol(chars[separatorsEnd])) separatorsEnd++;
+    let digitsEnd = separatorsEnd;
+    while (isDigit(chars[digitsEnd])) digitsEnd++;
+    let symbolsEnd = digitsEnd;
+    while (isSymbol(chars[symbolsEnd])) symbolsEnd++;
+
+    const digits = digitsEnd - separatorsEnd;
+    // Without digits behind them the "separators" are the symbols at the end.
+    const separators = digits > 0 ? separatorsEnd - end : 0;
+    if (
+      symbolsEnd !== chars.length ||
+      digits > MAX_WORD_DIGITS ||
+      digitsBefore + digits < 1 ||
+      separators > MAX_SEPARATORS ||
+      symbolsEnd - digitsEnd + (digits > 0 ? 0 : separatorsEnd - end) > MAX_TRAILING_SYMBOLS
+    ) {
+      continue;
+    }
+    // Symbols at the very start belong to the pattern where nothing lies between them and the
+    // word; behind them come digits otherwise, and they count as any other character.
+    const from = digitsBefore === 0 ? 0 : start - (joined ? 1 : 0);
+    const bits =
+      words.bits +
+      (digitsBefore === 0 ? leading : joined ? 1 : 0) * SEPARATOR_BITS +
+      separatorBits(chars.slice(end, end + separators));
+    patterns.push({ start: from, end: end + separators, bits, kind: 'word' });
+  }
+  return patterns;
 }
 
 // --- Sequences ("abcdef", "9876", "2468") ------------------------------------------------------

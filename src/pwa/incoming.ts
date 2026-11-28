@@ -3,6 +3,12 @@
  * "Open with" on desktop (File Handling API / launch queue).
  */
 import {
+  SHARE_PING,
+  SHARE_RECEIVED,
+  type SharePingMessage,
+  type ShareReceivedMessage,
+} from './protocol';
+import {
   SHARE_LOST_PARAM,
   SHARE_SOURCE_PARAM,
   SHARE_SOURCE_VALUE,
@@ -49,6 +55,12 @@ export interface IncomingEnvironment {
   /** Replaces the address shown for the page without navigating. */
   replaceUrl(url: string): void;
   now(): number;
+  /**
+   * Hands every message of a service worker to `listener`, with a way to answer the ones that
+   * expect an answer.
+   */
+  onWorkerMessage?:
+    ((listener: (data: unknown, reply: (answer: unknown) => void) => void) => void) | undefined;
 }
 
 /**
@@ -57,6 +69,12 @@ export interface IncomingEnvironment {
  * was loaded with is that one, not a new request by the user.
  */
 const INITIAL_LAUNCH_WINDOW_MS = 1000;
+/**
+ * A launch that names the share target but brings no files is a share that did not arrive,
+ * unless the worker asked about this window that recently: then it has the files and says so
+ * itself.
+ */
+const SHARE_PING_WINDOW_MS = 10_000;
 
 interface Batch {
   files: File[];
@@ -87,6 +105,7 @@ export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
   let pendingUrl: URL | null = null;
   let started = false;
   let consumerSetAt = 0;
+  let pingedAt: number | null = null;
   let collection: Promise<void> = Promise.resolve();
 
   function flush(): void {
@@ -148,8 +167,9 @@ export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
   /**
    * `announcement` is the address that brought the page here, if it may be the one the worker
    * sends the browser to after a share: it says whether files were lost on the way.
+   * `expected`: files were shared to this window, so finding none is the loss of that share.
    */
-  async function collectNow(announcement: URL | null): Promise<void> {
+  async function collectNow(announcement: URL | null, expected: boolean): Promise<void> {
     const shared = announcement?.searchParams.get(SHARE_SOURCE_PARAM) === SHARE_SOURCE_VALUE;
     let lost = announcement ? lostInShare(announcement) : null;
     let received = 0;
@@ -169,6 +189,7 @@ export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
     } finally {
       removeShareMarker();
     }
+    if (expected && received === 0) lost ??= 'all';
     if (lost !== null) {
       pendingProblems.push({ received, lost: lost === 'all' ? null : lost });
       flush();
@@ -176,10 +197,15 @@ export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
   }
 
   /** Collections run one after the other, so a later call also sees what arrived meanwhile. */
-  function collectShared(announcement: string | undefined): Promise<void> {
+  function collectShared(announcement: string | undefined, expected = false): Promise<void> {
     const url = parseUrl(announcement);
-    collection = collection.then(() => collectNow(url));
+    collection = collection.then(() => collectNow(url, expected));
     return collection;
+  }
+
+  /** The address a page is sent to after a share (see `shareRedirect`). */
+  function isShareAnnouncement(url: URL | null): boolean {
+    return url?.searchParams.get(SHARE_SOURCE_PARAM) === SHARE_SOURCE_VALUE;
   }
 
   async function onLaunch(params: LaunchParams): Promise<void> {
@@ -197,26 +223,45 @@ export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
     }
     const target = parseUrl(params.targetURL);
     const initial = parseUrl(env.initialUrl);
+    const toShareTarget = target !== null && isShareTargetUrl(target.href, env.scope);
+    // The share that loaded the page may be reported under the address it was sent to, not the
+    // one the worker answered it with.
     const isInitialLaunch =
       target !== null &&
       initial !== null &&
       env.now() - consumerSetAt < INITIAL_LAUNCH_WINDOW_MS &&
-      sameDocument(target, initial);
-    // A share that re-used this window instead of loading a fresh page. (What the address of
+      (sameDocument(target, initial) || (toShareTarget && isShareAnnouncement(initial)));
+    // Desktop Chromium focuses a running app for a share and tells it the share target's
+    // address, but sends the files nowhere: the worker never sees them, and neither will this
+    // window. Where the worker does get them (it asks about the window first), it reports.
+    const pinged = pingedAt !== null && env.now() - pingedAt < SHARE_PING_WINDOW_MS;
+    const withoutFiles = toShareTarget && !isInitialLaunch && !pinged;
+    // Whatever a share left in the stash for this window is collected. (What the address of
     // the launch that loaded the page says about a share was read when the page started.)
-    await collectShared(isInitialLaunch ? undefined : params.targetURL);
+    await collectShared(isInitialLaunch ? undefined : params.targetURL, withoutFiles);
     if (!target || isInitialLaunch) return;
     // Shares are about their files, which travel through the stash.
-    if (isShareTargetUrl(target.href, env.scope)) return;
-    if (target.searchParams.get(SHARE_SOURCE_PARAM) === SHARE_SOURCE_VALUE) return;
+    if (toShareTarget || isShareAnnouncement(target)) return;
     pendingUrl = target;
     flush();
+  }
+
+  /** The worker keeps a share for this page instead of loading a new one (see sw.ts). */
+  function onWorkerMessage(data: unknown, reply: (answer: unknown) => void): void {
+    const message = data as Partial<SharePingMessage | ShareReceivedMessage> | null;
+    if (message?.type === SHARE_PING) {
+      pingedAt = env.now();
+      reply(true);
+    } else if (message?.type === SHARE_RECEIVED && typeof message.url === 'string') {
+      void collectShared(message.url);
+    }
   }
 
   function start(): void {
     if (started) return;
     started = true;
     void collectShared(env.currentUrl());
+    env.onWorkerMessage?.(onWorkerMessage);
     // The browser keeps launches queued until a consumer is set, so nothing is lost by
     // attaching late; with `client_mode: focus-existing` it is called again for every re-launch.
     consumerSetAt = env.now();
@@ -265,6 +310,14 @@ function browserInstance(): IncomingFiles | null {
     currentUrl: () => window.location.href,
     replaceUrl: (url) => window.history.replaceState(window.history.state, '', url),
     now: () => performance.now(),
+    onWorkerMessage:
+      'serviceWorker' in navigator
+        ? (listener) => {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+              listener(event.data, (answer) => event.ports[0]?.postMessage(answer));
+            });
+          }
+        : undefined,
   });
   return shared;
 }
@@ -286,7 +339,8 @@ export function onIncomingFiles(
  * open and the user taps an app shortcut ("Lock", "Unlock"), the existing window is focused and
  * the shortcut's URL (e.g. `./?mode=lock`) arrives here instead of being navigated to. Launches
  * that carry files are reported through `onIncomingFiles` only, and the launch that loaded the
- * page is not reported at all (its URL is `location.href`).
+ * page is not reported at all (its URL is `location.href`). Desktop Chromium honours this;
+ * Chrome on Android navigates the window of a running installed app instead.
  */
 export function onLaunchUrl(handler: (url: URL) => void): () => void {
   return browserInstance()?.onLaunchUrl(handler) ?? (() => undefined);
@@ -294,8 +348,9 @@ export function onLaunchUrl(handler: (url: URL) => void): () => void {
 
 /**
  * Registers the single consumer for shares that did not arrive completely: the storage the
- * files travel through was full or could not be used. The app has then been opened without
- * them (or with only some of them) and should say so.
+ * files travel through was full or could not be used, or the browser focused the running app
+ * without sending the files anywhere (desktop Chromium). The app is then open without them (or
+ * with only some of them) and should say so.
  */
 export function onShareProblem(handler: (problem: ShareProblem) => void): () => void {
   return browserInstance()?.onShareProblem(handler) ?? (() => undefined);

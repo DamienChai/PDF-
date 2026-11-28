@@ -318,6 +318,71 @@ test.describe('unlock several files', () => {
     await expect(app.dock).toContainText(app.t('status.unlocked', { count: 2 }));
   });
 
+  test('the main button says how many files it will try, and tries no password that is out of sight', async ({
+    app,
+  }) => {
+    const first = fixture('aes-256-r6.pdf');
+    const second = fixture('gbk-r3.pdf');
+    const third = fixture('latin1-r4.pdf');
+    expect(new Set([first, second, third].map((f) => f.userPassword)).size).toBe(3);
+    await app.open();
+    await app.addFixtures(first.file, second.file, third.file);
+    await app.analysed(3);
+    await expect(app.dockButton('action.unlockCount', { count: 3 })).toBeVisible();
+    await app.unlockWith('opens none of them');
+    for (const { file } of [first, second, third]) await app.expectState(file, 'wrong-password');
+    await app.unlockField.fill('');
+
+    // One card holds a password: that is the one file a press will try.
+    await app.cardField(second.file).fill(second.userPassword!);
+    const one = app.dockButton('action.unlock');
+    await expect(one).toBeVisible();
+    await expect(one).not.toHaveAttribute('aria-disabled', 'true');
+    await app.press(one);
+    await app.expectState(second.file, 'done');
+    await app.expectState(first.file, 'wrong-password');
+    await app.expectState(third.file, 'wrong-password');
+    // The others still wait: the cursor is in the first of their fields.
+    await expect(app.cardField(first.file)).toBeFocused();
+    await expect(app.dockButton('action.unlockCount', { count: 2 })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+
+    // A password is typed on a card, tried and rejected; then the other files are removed.
+    await app.cardField(first.file).fill('not it');
+    await app.cardField(first.file).press('Enter');
+    await expect(app.cardField(first.file)).toHaveAttribute('aria-invalid', 'true');
+    await app.menuCommand(third.file, 'entry.menu.remove');
+    await app.menuCommand(second.file, 'entry.menu.remove');
+    await expect(app.cards).toHaveCount(1);
+    // One file: its password is typed into the one field that is left, and that field is empty.
+    await expect(app.cardField(first.file)).toHaveCount(0);
+    await expect(app.unlockField).toHaveValue('');
+    const waiting = app.dockButton('action.unlock');
+    await expect(waiting).toHaveAttribute('aria-disabled', 'true');
+    const cardId = (await app.card(first.file).getAttribute('data-entry'))!;
+    await app.page.evaluate((id) => {
+      const card = document.querySelector<HTMLElement>(`[data-entry="${id}"]`)!;
+      const seen: string[] = [];
+      new MutationObserver(() => seen.push(card.dataset.state ?? '')).observe(card, {
+        attributes: true,
+        attributeFilter: ['data-state'],
+      });
+      (window as unknown as { e2eStates: string[] }).e2eStates = seen;
+    }, cardId);
+    // It looks unavailable and still reacts (`force`: Playwright would wait for it otherwise).
+    await waiting.click({ force: true });
+    // Nothing was tried: the press points to the field.
+    await expect(app.unlockField).toBeFocused();
+    await app.expectState(first.file, 'wrong-password');
+    expect(
+      await app.page.evaluate(() => (window as unknown as { e2eStates: string[] }).e2eStates),
+    ).toEqual([]);
+    await app.unlockWith(first.userPassword!);
+    await app.expectState(first.file, 'done');
+  });
+
   test('a password that opens nothing is rejected at the shared field', async ({ app }) => {
     await app.open();
     await app.addFixtures('aes-256-r6.pdf', 'aes-128-r4.pdf');

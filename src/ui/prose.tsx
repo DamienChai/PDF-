@@ -2,9 +2,14 @@
  * Running text whose last line is never a stub ("……文件也将无法 / 打开。"). The end of the text is
  * set as one piece, so the last line break falls in front of it: in Chinese in front of the last
  * clause, or of the last few words when that clause is long; in English in front of the last
- * two words. The piece is an inline block: where it is wider than its line it wraps like any
- * other text, so nothing can overflow. A long clause keeps its own last words together in turn,
- * for the column that is narrower than the clause.
+ * two words.
+ *
+ * In English the piece is an inline block: where it is wider than its line it wraps like any
+ * other text, so nothing can overflow. Chinese has no space where the piece begins, and an
+ * inline block gets one in the text that assistive technology is given: the name of a control
+ * would read "……的大 多数软件". There the piece stays ordinary inline text (base.css): a short
+ * one is set without line breaks; a long clause does not break between its characters unless it
+ * is wider than the line, and its last words do not break at all.
  */
 import { useMemo } from 'preact/hooks';
 
@@ -25,6 +30,8 @@ const MIN_TAIL = 4;
 const MAX_TAIL = 16;
 /** A clause from this width on may need two lines in a narrow column: its own end is kept too. */
 const LONG_TAIL = 8;
+/** A piece that is set without any line break is no wider than this: it fits every column. */
+const MAX_TIGHT = 10;
 /** The longest pair of English words that is kept together. */
 const MAX_LATIN_TAIL = 24;
 
@@ -119,18 +126,52 @@ export function splitLongTail(tail: string): readonly [head: string, tail: strin
   return at > 0 ? [tail.slice(0, at), tail.slice(at)] : [tail, ''];
 }
 
+/**
+ * A text as `Prose` sets it: what wraps freely, the last clause, and the last words of that
+ * clause when it is a long one (each may be empty). `tight` says which of the two pieces is short
+ * enough to be set without any line break.
+ */
+export function splitKept(text: string): {
+  free: string;
+  clause: string;
+  end: string;
+  tight: 'clause' | 'end' | null;
+} {
+  const [free, tail] = splitTail(text);
+  const [clause, end] = splitLongTail(tail);
+  const tight = end
+    ? widthOf(end) <= MAX_TIGHT
+      ? 'end'
+      : null
+    : clause && widthOf(clause) <= LONG_TAIL
+      ? 'clause'
+      : null;
+  return { free, clause, end, tight };
+}
+
+/**
+ * A Chinese clause that is not set without line breaks as a whole could still break at its
+ * spaces: "2011 / 年后的……". They become no-break spaces, which is what belongs between a
+ * number and its unit anyway.
+ */
+function unbreakable(piece: string, han: boolean): string {
+  return han ? piece.replaceAll(' ', '\u00a0') : piece;
+}
+
 export function Prose({ text }: { text: string }) {
-  const [head, clause, end] = useMemo(() => {
-    const [free, tail] = splitTail(text);
-    return [free, ...splitLongTail(tail)] as const;
-  }, [text]);
+  const { free, clause, end, tight } = useMemo(() => splitKept(text), [text]);
   if (!clause) return <>{text}</>;
+  const han = HAN.test(text);
   return (
     <>
-      {head}
-      <span class="keep">
-        {clause}
-        {end && <span class="keep">{end}</span>}
+      {free}
+      <span class={tight === 'clause' ? 'keep keep--tight' : 'keep'}>
+        {tight === 'clause' ? clause : unbreakable(clause, han)}
+        {end && (
+          <span class={tight === 'end' ? 'keep keep--tight' : 'keep'}>
+            {tight === 'end' ? end : unbreakable(end, han)}
+          </span>
+        )}
       </span>
     </>
   );

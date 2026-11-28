@@ -937,6 +937,49 @@ describe('lock: a result stays until its replacement is finished', () => {
     expect(h.jobs.lockApplied.value).toMatchObject({ password: NEW_PASSWORD });
   });
 
+  it('auto-save does not deliver a result that came back: it was made with other settings', async () => {
+    // Unsaved results from before auto-save was switched on, then the run is cancelled.
+    const h = await relocking();
+    h.settings.value = { ...h.settings.value, autoSave: true };
+    h.engine.setHold(0.5);
+    const run = h.jobs.lockAll();
+    await tick();
+    h.jobs.cancelAll();
+    h.engine.release();
+    expect(await run).toMatchObject({ done: 0, cancelled: 3 });
+    await h.jobs.settled();
+    expect(h.saved()).toEqual([]);
+    expect(h.toastKeys()).toEqual([]);
+    expect(h.view('plain.pdf').result).toMatchObject({ withheld: true, saved: false });
+    expect(h.view('aes128.pdf').result).toMatchObject({ withheld: true, saved: false });
+    expect(h.jobs.unsavedWork.value).toBe(true);
+  });
+
+  it('auto-save delivers what the run made, and not the result of a file that was cancelled', async () => {
+    const h = await relocking();
+    h.settings.value = { ...h.settings.value, autoSave: true };
+    h.engine.setHold(0.5);
+    const run = h.jobs.lockAll();
+    await tick();
+    h.jobs.cancel(h.entry('plain.pdf').id);
+    // The run ends while the other mode is on screen: nothing is withheld there, and it is
+    // still not handed out.
+    h.mode.value = 'unlock';
+    h.engine.release();
+    expect(await run).toMatchObject({ done: 2, cancelled: 1 });
+    await h.jobs.settled();
+    h.mode.value = 'lock';
+    expect(h.save.zips).toEqual([['aes128_locked.pdf', 'owner-only_locked.pdf']]);
+    expect(h.saved()).toEqual([{ via: 'downloadFile', names: ['archive-lock.zip'] }]);
+    expect(h.view('plain.pdf').result).toMatchObject({ withheld: true, saved: false });
+    expect(h.view('aes128.pdf').result).toMatchObject({ withheld: false, saved: true });
+    // Everything that was delivered opens with the password on screen.
+    for (const file of h.save.calls.flatMap((call) => call.files)) {
+      if (!file.name.endsWith('.pdf')) continue;
+      expect((await h.engine.inspect(file.blob, OTHER_PASSWORD)).access).not.toBe('locked');
+    }
+  });
+
   it('gives a kept result its name back, whatever was locked meanwhile', async () => {
     const h = lockHarness();
     await h.add('plain.pdf');

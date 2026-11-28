@@ -1,5 +1,10 @@
 /** Service worker registration and update flow. */
-import { SKIP_WAITING, type SkipWaitingMessage } from './protocol';
+import {
+  PAGE_LOADED,
+  SKIP_WAITING,
+  type PageLoadedMessage,
+  type SkipWaitingMessage,
+} from './protocol';
 
 export interface ServiceWorkerHooks {
   /**
@@ -70,6 +75,11 @@ export async function manageServiceWorker(
     // GitHub Pages serves everything with max-age=600; the worker script must bypass that.
     updateViaCache: 'none',
   });
+
+  // The worker that served this page learns that it has loaded: with no other window open,
+  // nothing runs an earlier build any more, and the files kept for one can go.
+  const loaded: PageLoadedMessage = { type: PAGE_LOADED };
+  container.controller?.postMessage(loaded);
 
   const mayReload = (): boolean => {
     try {

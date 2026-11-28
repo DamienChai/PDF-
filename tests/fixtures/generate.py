@@ -339,6 +339,69 @@ def lzw_cut_off(target: str) -> None:
     (HERE / target).write_bytes(cut)
 
 
+SCAN_CONTENT = b"q 595.32 0 0 841.92 0 0 cm /Im0 Do Q"
+
+
+def scan_objects() -> list[bytes]:
+    """One page that is one black-and-white image, as office scanners write them: the image
+    under /CCITTFaxDecode and a content stream of a few dozen bytes without a filter."""
+    rows = 64
+    # Group 4 data of a white page: every row repeats the one above (one bit each), then EOFB.
+    image = b"\xff" * (rows // 8) + b"\x00\x10\x01"
+    return [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Count 1 /Kids [ 3 0 R ] >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.32 841.92] /Contents 4 0 R "
+        b"/Resources << /XObject << /Im0 5 0 R >> >> >>",
+        b"<< /Length %d >>\nstream\n" % len(SCAN_CONTENT) + SCAN_CONTENT + b"\nendstream",
+        b"<< /Type /XObject /Subtype /Image /Width 64 /Height %d /ColorSpace /DeviceGray "
+        b"/BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 64 /Rows %d >> "
+        b"/Length %d >>\nstream\n" % (rows, rows, len(image)) + image + b"\nendstream",
+    ]
+
+
+def looks_like_cipher_output(data: bytes) -> bool:
+    """The engine's test for stream data without a filter (looksRandom in engine/src/pdfx.cc)."""
+    high = sum(byte >> 7 for byte in data)
+    control = sum(byte < 0x20 and byte not in b"\t\n\f\r" for byte in data)
+    most = max(data.count(byte) for byte in set(data))
+    size = len(data)
+    return size <= high * 4 <= size * 3 and control * 32 >= size and most <= size // 8 + 2
+
+
+def scan_cut_off(target: str) -> None:
+    """An encrypted scan, cut off in front of the encryption dictionary. The only stream that
+    can be tested is the page content, and its 36 bytes of ciphertext are of the kind that do
+    not look like cipher output: about one file in ten of this shape. The first owner password
+    that makes such a file is taken, so the result is the same on every run."""
+    for serial in range(1, 200):
+        source = pikepdf.open(io.BytesIO(raw_pdf(scan_objects())))
+        assert source.pages[0].Contents.read_bytes() == SCAN_CONTENT
+        encrypted = io.BytesIO()
+        source.save(
+            encrypted,
+            encryption=Encryption(
+                owner=f"owner-{serial}", user="user", R=3, aes=False, metadata=False, allow=ALL
+            ),
+            compress_streams=False,
+            static_id=True,
+        )
+        data = encrypted.getvalue()
+        dictionary = data.index(b"/Filter /Standard")
+        cut = data[: data.rindex(b" 0 obj", 0, dictionary)]
+        cut = cut[: cut.rindex(b"\n") + 1]
+        assert cut.count(b"endstream") == 2 and b"/Encrypt" not in cut and b"/Standard" not in cut
+        assert cut.count(b"/Filter") == 1 and b"/Filter /CCITTFaxDecode" in cut
+        start = cut.index(b"<< /Length %d >>\nstream\n" % len(SCAN_CONTENT))
+        start = cut.index(b"stream\n", start) + len(b"stream\n")
+        ciphertext = cut[start : start + len(SCAN_CONTENT)]
+        assert ciphertext != SCAN_CONTENT and cut[start + len(SCAN_CONTENT) :].startswith(b"\nendstream")
+        if not looks_like_cipher_output(ciphertext):
+            (HERE / target).write_bytes(cut)
+            return
+    raise AssertionError("no owner password gave ciphertext of the kind the fixture is about")
+
+
 def check_bytes_open(name: str, password: bytes, expected: int) -> None:
     """Independent check (pypdf) that `password` opens the file as user (1) or owner (2)."""
     result = pypdf.PdfReader(HERE / name).decrypt(password)
@@ -722,6 +785,10 @@ def main() -> None:
     lzw_cut_off("truncated-lzw-r2.pdf")
     record_error("truncated-lzw-r2.pdf", "RC4-40 (R2), LZW streams only, cut off before the encryption dictionary",
                  "damaged", password="user")
+    scan_cut_off("truncated-scan-r3.pdf")
+    record_error("truncated-scan-r3.pdf",
+                 "RC4-128 (R3), a scanned page (CCITT image, 36 bytes of content without a filter), "
+                 "cut off before the encryption dictionary", "damaged", password="user")
 
     (HERE / "not-a-pdf.bin").write_bytes(
         b"\x89PNG\r\n\x1a\n" + bytes(random.Random("not-a-pdf").getrandbits(8) for _ in range(3000))

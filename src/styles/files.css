@@ -769,10 +769,6 @@
   text-wrap: var(--wrap-notes);
 }
 
-:lang(zh) .spotlight .problem__text .keep {
-  display: inline-block;
-}
-
 .spotlight .problem__actions {
   justify-content: center;
 }

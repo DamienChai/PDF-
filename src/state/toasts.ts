@@ -23,6 +23,12 @@ export interface ToastOptions {
   key?: string;
   /** Milliseconds until it disappears by itself; `0` keeps it until dismissed. */
   duration?: number;
+  /**
+   * An announcement nobody is waiting for (the app is ready to work offline): it does not cover
+   * the toasts that are on screen, which may answer something the user just did. It takes its
+   * place under them, and its time starts when they have gone.
+   */
+  background?: boolean;
 }
 
 export interface Toast {
@@ -67,6 +73,8 @@ interface Timer {
   remaining: number;
   startedAt: number;
   paused: boolean;
+  /** Not started yet: a background toast under the toasts it did not cover. */
+  waiting: boolean;
 }
 
 const systemClock: ToastClock = {
@@ -95,20 +103,36 @@ export function createToastQueue(clock: ToastClock = systemClock): ToastQueue {
     if (toasts.peek().some((toast) => toast.id === id)) {
       toasts.value = toasts.peek().filter((toast) => toast.id !== id);
     }
+    startWaiting();
   }
 
   function arm(id: number, timer: Timer): void {
     timer.paused = false;
+    timer.waiting = false;
     timer.startedAt = clock.now();
     timer.handle = clock.setTimeout(() => dismiss(id), timer.remaining);
   }
 
-  function startTimer(id: number, duration: number): void {
+  /** `waiting`: the countdown begins when the toast is the one on top (see `background`). */
+  function startTimer(id: number, duration: number, waiting = false): void {
     stopTimer(id);
     if (duration <= 0) return;
-    const timer: Timer = { handle: undefined, remaining: duration, startedAt: 0, paused: false };
+    const timer: Timer = {
+      handle: undefined,
+      remaining: duration,
+      startedAt: 0,
+      paused: waiting,
+      waiting,
+    };
     timers.set(id, timer);
-    arm(id, timer);
+    if (!waiting) arm(id, timer);
+  }
+
+  /** The toast on top is the one on screen: if its time has not begun yet, it begins now. */
+  function startWaiting(): void {
+    const top = toasts.peek().at(-1);
+    const timer = top ? timers.get(top.id) : undefined;
+    if (top && timer?.waiting) arm(top.id, timer);
   }
 
   function show(message: Message, options: ToastOptions = {}): number {
@@ -127,16 +151,21 @@ export function createToastQueue(clock: ToastClock = systemClock): ToastQueue {
       action,
       sticky: duration <= 0,
     };
+    // A background toast goes under what is on screen; replacing a toast keeps its place.
+    const under = options.background === true && !existing && current.length > 0;
     let next = existing
       ? current.map((other) => (other === existing ? toast : other))
-      : [...current, toast];
+      : under
+        ? [toast, ...current]
+        : [...current, toast];
     while (next.length > MAX_TOASTS) {
       const victim = next.find((other) => !other.sticky && other.id !== toast.id) ?? next[0]!;
       stopTimer(victim.id);
       next = next.filter((other) => other !== victim);
     }
     toasts.value = next;
-    startTimer(toast.id, duration);
+    startTimer(toast.id, duration, under);
+    startWaiting();
     return toast.id;
   }
 
@@ -158,7 +187,7 @@ export function createToastQueue(clock: ToastClock = systemClock): ToastQueue {
     },
     resume(id) {
       const timer = timers.get(id);
-      if (!timer || !timer.paused) return;
+      if (!timer || !timer.paused || timer.waiting) return;
       // Never vanish the instant the pointer leaves.
       timer.remaining = Math.max(timer.remaining, 1000);
       arm(id, timer);

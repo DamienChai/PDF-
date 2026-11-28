@@ -977,6 +977,9 @@ namespace
         // anything.
         static constexpr size_t sample = 256;
         static constexpr size_t smallest_sample = 16;
+        // From this many bytes on, cipher output is recognised practically always (it misses
+        // `looksRandom` about three times in ten thousand; at 20 to 60 bytes, one time in ten).
+        static constexpr size_t telling_sample = 128;
 
         bool
         decided() const
@@ -1287,6 +1290,22 @@ namespace
             return high * 4 >= n && high * 4 <= n * 3 && control * 32 >= n && most <= n / 8 + 2;
         }
 
+        // True if at least seven of eight bytes are printable ASCII or white space: text, such
+        // as a content stream or a CMap, with room for a byte-order mark or a few stray bytes.
+        // Sixteen bytes of cipher output pass less than once in ten thousand times, and longer
+        // samples practically never.
+        static bool
+        looksLikeText(unsigned char const* d, size_t n)
+        {
+            size_t other = 0;
+            for (size_t k = 0; k < n; ++k) {
+                unsigned char c = d[k];
+                other += !(c == '\t' || c == '\n' || c == '\f' || c == '\r' ||
+                    (c >= 0x20 && c <= 0x7e));
+            }
+            return other * 8 <= n;
+        }
+
         // True if the data begins like a file that is compressed in itself (an attachment a
         // writer stored as it was): the one kind of unencrypted data that looks random.
         static bool
@@ -1366,8 +1385,18 @@ namespace
                     offset);
                 return;
             case Leading::unfiltered:
+                // Each verdict needs evidence of its own: text or the signature of a packed
+                // file says "as it was written", the look of cipher output says "encrypted".
+                // Data that shows neither counts as written only where the sample is long
+                // enough for cipher output to be recognised; a short one says nothing.
                 if (available >= smallest_sample) {
-                    loose_.add(isPackedFile(d, available) || !looksRandom(d, available), offset);
+                    if (isPackedFile(d, available) || looksLikeText(d, available)) {
+                        loose_.add(true, offset);
+                    } else if (looksRandom(d, available)) {
+                        loose_.add(false, offset);
+                    } else if (available >= telling_sample) {
+                        loose_.add(true, offset);
+                    }
                 }
                 return;
             }
