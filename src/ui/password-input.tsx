@@ -16,7 +16,11 @@ export interface PasswordInputProps {
   /** `off` for passwords of existing files, `new-password` where one is being chosen. */
   autocomplete: 'off' | 'new-password';
   enterkeyhint: 'go' | 'done' | 'next';
-  onEnter?: (() => void) | undefined;
+  /**
+   * Enter was pressed in the field. Return false to leave the key to the browser, which then
+   * submits the form the field is in.
+   */
+  onEnter?: (() => boolean | void) | undefined;
   onBlur?: (() => void) | undefined;
   invalid?: boolean;
   disabled?: boolean;
@@ -41,6 +45,18 @@ export interface PasswordInputProps {
  */
 export function literalEntry(element: HTMLInputElement | null): void {
   element?.setAttribute('autocorrect', 'off');
+}
+
+/**
+ * True if a key event is Enter pressed for its own sake. While an input method is composing,
+ * Enter confirms the composition and nothing else: the password is not finished. Browsers mark
+ * that keydown with `isComposing`; WebKit ends the composition first and then sends the keydown
+ * with `isComposing` false, recognisable only by the key code 229 ("handled by the input method").
+ */
+export function isPlainEnter(
+  event: Pick<KeyboardEvent, 'key' | 'isComposing' | 'keyCode'>,
+): boolean {
+  return event.key === 'Enter' && !event.isComposing && event.keyCode !== 229;
 }
 
 function assign<T>(ref: Ref<T> | undefined, value: T | null): void {
@@ -102,11 +118,7 @@ export function PasswordInput({
         onInput={(event) => onInput(event.currentTarget.value)}
         onBlur={onBlur}
         onKeyDown={(event) => {
-          // Not while an input method is composing: there Enter confirms the composition.
-          if (event.key === 'Enter' && !event.isComposing && onEnter) {
-            event.preventDefault();
-            onEnter();
-          }
+          if (onEnter && isPlainEnter(event) && onEnter() !== false) event.preventDefault();
         }}
       />
       <button

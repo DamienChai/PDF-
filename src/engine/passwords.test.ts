@@ -6,6 +6,7 @@ import {
   encodePdfDoc,
   maxPasswordBytes,
   openCandidates,
+  sameNewPassword,
   toHex,
 } from './passwords';
 import { saslprep } from './saslprep';
@@ -321,5 +322,50 @@ describe('new passwords', () => {
     expect(
       checkNewPasswords({ algorithm: 'aes-256', userPassword: mixed, ownerPassword: '' }),
     ).toBeNull();
+  });
+});
+
+describe('sameNewPassword', () => {
+  // "abc123" in full-width letters and digits.
+  const fullWidth = cp(0xff41, 0xff42, 0xff43, 0xff11, 0xff12, 0xff13);
+  const composed = `caf${cp(0xe9)}`;
+  const decomposed = `cafe${cp(0x301)}`;
+
+  test('equal text is the same password', () => {
+    expect(sameNewPassword('secret', 'secret', 'aes-256')).toBe(true);
+    expect(sameNewPassword('secret', 'secret', 'aes-128')).toBe(true);
+    expect(sameNewPassword('', '', 'aes-256')).toBe(true);
+  });
+
+  test('different text is not, including case and spaces', () => {
+    for (const algorithm of ['aes-256', 'aes-128'] as const) {
+      expect(sameNewPassword('secret', 'Secret', algorithm)).toBe(false);
+      expect(sameNewPassword('secret', 'secret ', algorithm)).toBe(false);
+      expect(sameNewPassword('secret', '', algorithm)).toBe(false);
+    }
+  });
+
+  test('AES-256: text that SASLprep maps to the same bytes', () => {
+    expect(sameNewPassword('abc123', fullWidth, 'aes-256')).toBe(true);
+    expect(sameNewPassword(composed, decomposed, 'aes-256')).toBe(true);
+    // A soft hyphen is mapped to nothing, an ideographic space to a space.
+    expect(sameNewPassword('pass word', `pa${cp(0xad)}ss${cp(0x3000)}word`, 'aes-256')).toBe(true);
+    expect(
+      encodeNewPasswords({ algorithm: 'aes-256', userPassword: fullWidth, ownerPassword: '' }).user,
+    ).toEqual(
+      encodeNewPasswords({ algorithm: 'aes-256', userPassword: 'abc123', ownerPassword: '' }).user,
+    );
+  });
+
+  test('AES-128: composed and decomposed accents', () => {
+    expect(sameNewPassword(composed, decomposed, 'aes-128')).toBe(true);
+    expect(sameNewPassword(composed, 'cafe', 'aes-128')).toBe(false);
+  });
+
+  test('passwords that cannot be written are compared as typed', () => {
+    // Full-width letters have no PDFDocEncoding: no bytes to compare.
+    expect(sameNewPassword('abc123', fullWidth, 'aes-128')).toBe(false);
+    expect(sameNewPassword(fullWidth, fullWidth, 'aes-128')).toBe(true);
+    expect(sameNewPassword('x'.repeat(128), `${'x'.repeat(127)}y`, 'aes-256')).toBe(false);
   });
 });

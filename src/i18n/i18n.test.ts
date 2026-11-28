@@ -25,6 +25,7 @@ import {
   lockAlgorithmLabel,
   msg,
   permissionLabel,
+  phrasesOf,
   resolveLocale,
   restrictionList,
   strengthHintText,
@@ -255,8 +256,31 @@ describe('t', () => {
     const list = { list: [msg('restriction.print'), msg('restriction.extract')] };
     expect(t(list)).toBe('不可打印、不可复制');
     updateSettings({ language: 'en' });
-    expect(t(list)).toBe('No printing, No copying');
+    // Running text: only the first item keeps its capital.
+    expect(t(list)).toBe('No printing, no copying');
     expect(t({ list: [] })).toBe('');
+  });
+
+  it('lowers the capital of later list items in English, but never an acronym', () => {
+    updateSettings({ language: 'en' });
+    expect(t({ list: [msg('restriction.extract'), msg('restriction.printLow')] })).toBe(
+      'No copying, low-resolution printing only',
+    );
+    expect(t({ list: [msg('chip.locked'), msg('empty.chip.aes256'), msg('app.name')] })).toBe(
+      'Locked, AES-256, PDF Key',
+    );
+  });
+
+  it('gives the phrases of a list with their punctuation, and the gap between them', () => {
+    const list = { list: [msg('restriction.print'), msg('restriction.extract')] };
+    updateSettings({ language: 'zh-CN' });
+    expect(phrasesOf(list)).toEqual({ phrases: ['不可打印、', '不可复制'], gap: '' });
+    updateSettings({ language: 'en' });
+    expect(phrasesOf(list)).toEqual({ phrases: ['No printing,', 'no copying'], gap: ' ' });
+    // Put together again, the phrases are the line `t()` gives.
+    const { phrases, gap } = phrasesOf(list);
+    expect(phrases.join(gap)).toBe(t(list));
+    expect(phrasesOf({ list: [] })).toEqual({ phrases: [], gap: ' ' });
   });
 
   it('checks parameters at compile time', () => {
@@ -422,6 +446,7 @@ describe('labels', () => {
     const hints: Record<StrengthHint, true> = {
       'too-short': true,
       'common-password': true,
+      'name-or-word': true,
       'repeated-characters': true,
       sequence: true,
       'single-character-class': true,

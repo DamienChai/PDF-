@@ -306,6 +306,11 @@
   grid-column: 1 / -1;
 }
 
+/* An odd number of facts: the last one takes the row instead of leaving a hole beside it. */
+.tiles--facts > .tile:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .tile__label {
   font: var(--type-caption);
   color: var(--color-text-2);
@@ -397,8 +402,16 @@
   gap: 0 var(--space-3);
 }
 
+/* Stays at the right edge when it has to take a line of its own. */
 .licenses__license {
+  margin-left: auto;
   color: var(--color-text-2);
+  text-align: right;
+}
+
+.licenses__notices {
+  justify-self: start;
+  margin-top: var(--space-1);
 }
 
 @media (min-width: 720px) {
@@ -530,8 +543,9 @@
 }
 
 .toast__close {
-  width: 40px;
-  height: 40px;
+  /* A touch target of its own on the phone; the visible shape stays 36px (see ::before). */
+  width: max(40px, var(--hit));
+  height: max(40px, var(--hit));
   color: inherit;
   opacity: 0.75;
 }
@@ -542,7 +556,7 @@
 }
 
 .toast__close::before {
-  inset: 2px;
+  inset: calc((max(40px, var(--hit)) - 36px) / 2);
 }
 
 .toast__close:hover::before {

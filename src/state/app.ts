@@ -2,8 +2,14 @@
  * The shell of the app: mode, open sheet, drop overlay, and `start()`, which wires the state
  * modules to the platform exactly once.
  */
-import { computed, effect, untracked, type ReadonlySignal } from '@preact/signals';
-import { onIncomingFiles, onLaunchUrl, type IncomingSource } from '../pwa/incoming';
+import { computed, effect, signal, untracked, type ReadonlySignal } from '@preact/signals';
+import {
+  onIncomingFiles,
+  onLaunchUrl,
+  onShareProblem,
+  type IncomingSource,
+  type ShareProblem,
+} from '../pwa/incoming';
 import { registerServiceWorker, type ServiceWorkerHooks } from '../pwa/register';
 import { engineState, isFakeEngineRequested, type EngineState } from './engine';
 import { createIntake, openPdfPicker, type Intake } from './intake';
@@ -19,7 +25,7 @@ export type { Overlay } from './overlay';
 /** Everything `start()` connects; replaced by fakes in tests. */
 export interface AppDependencies {
   settings: Pick<SettingsStore, 'applyEffects'>;
-  jobs: Pick<JobsController, 'entries' | 'addFiles' | 'retryInspections'>;
+  jobs: Pick<JobsController, 'entries' | 'addFiles' | 'retryInspections' | 'unsavedWork'>;
   toasts: ToastQueue;
   engine: Pick<EngineState, 'status' | 'preload' | 'retry'>;
   overlay: OverlayController;
@@ -28,6 +34,7 @@ export interface AppDependencies {
   registerServiceWorker(hooks: ServiceWorkerHooks): void;
   onIncomingFiles(handler: (files: File[], source: IncomingSource) => void): unknown;
   onLaunchUrl(handler: (url: URL) => void): unknown;
+  onShareProblem(handler: (problem: ShareProblem) => void): unknown;
   /** Extras of a development build. */
   startDevTools?: (() => void) | undefined;
 }
@@ -36,6 +43,7 @@ export interface AppDependencies {
 const UPDATE_TOAST = 'app-update';
 const OFFLINE_TOAST = 'offline-ready';
 const ENGINE_TOAST = 'engine-unavailable';
+const SHARE_TOAST = 'share-lost';
 
 /**
  * Returns the app's `start` function. Every step is independent: a platform feature that is
@@ -87,6 +95,61 @@ export function createAppStarter(deps: AppDependencies): () => void {
     });
   }
 
+  /**
+   * A new version is offered only while reloading costs nothing: nothing is being processed and
+   * every result is saved. Until then the offer waits, and it is withdrawn when work begins
+   * while it is on screen. Dismissing the toast declines the offer.
+   */
+  function offerUpdates(): ServiceWorkerHooks {
+    type Apply = () => Promise<void>;
+    const mayReload = (): boolean => !deps.jobs.unsavedWork.peek();
+    /** Applies the update that waits for a good moment or for the user's answer. */
+    const offer = signal<Apply | null>(null);
+    /** The toast on screen and the update it stands for. */
+    let shown: { id: number; apply: Apply } | null = null;
+
+    effect(() => {
+      const apply = offer.value;
+      const safe = !deps.jobs.unsavedWork.value;
+      const onScreen = deps.toasts.toasts.value.some((toast) => toast.id === shown?.id);
+      untracked(() => {
+        if (shown && !onScreen) {
+          // Dismissed by the user, or its action is about to run.
+          shown = null;
+          offer.value = null;
+        } else if (shown && (!apply || !safe)) {
+          const { id } = shown;
+          shown = null;
+          deps.toasts.dismiss(id);
+        } else if (apply && safe && shown?.apply !== apply) {
+          const id = deps.toasts.show(
+            { key: 'toast.update' },
+            {
+              key: UPDATE_TOAST,
+              duration: 0,
+              action: {
+                label: { key: 'toast.update.action' },
+                run: () => {
+                  if (mayReload()) void apply().catch(() => undefined);
+                  // Work began in the very moment of the tap: the offer waits again.
+                  else offer.value = apply;
+                },
+              },
+            },
+          );
+          shown = { id, apply };
+        }
+      });
+    });
+
+    return {
+      mayReload,
+      onNeedRefresh: (apply) => {
+        offer.value = apply;
+      },
+    };
+  }
+
   return function start(): void {
     if (started) return;
     started = true;
@@ -97,19 +160,7 @@ export function createAppStarter(deps: AppDependencies): () => void {
     step(closeOrphanedDetails);
     step(() =>
       deps.registerServiceWorker({
-        onNeedRefresh: (apply) => {
-          deps.toasts.show(
-            { key: 'toast.update' },
-            {
-              key: UPDATE_TOAST,
-              duration: 0,
-              action: {
-                label: { key: 'toast.update.action' },
-                run: () => void apply().catch(() => undefined),
-              },
-            },
-          );
-        },
+        ...offerUpdates(),
         onOfflineReady: () => {
           deps.toasts.show({ key: 'toast.offlineReady' }, { key: OFFLINE_TOAST, tone: 'success' });
         },
@@ -120,6 +171,17 @@ export function createAppStarter(deps: AppDependencies): () => void {
         // Shared to or opened with the app: the list is what the user wants to see now.
         deps.overlay.close();
         void deps.jobs.addFiles(files, source);
+      }),
+    );
+    step(() =>
+      deps.onShareProblem(({ received, lost }) => {
+        deps.overlay.close();
+        deps.toasts.show(
+          received > 0 && lost !== null
+            ? { key: 'toast.shareLostCount', params: { count: lost } }
+            : { key: 'toast.shareLost' },
+          { key: SHARE_TOAST, tone: 'error' },
+        );
       }),
     );
     step(() =>
@@ -146,6 +208,7 @@ const intake = createIntake({
   addFiles: (files, source) => void jobs.addFiles(files, source),
   target: hasWindow ? window : undefined,
   openPicker: typeof document === 'undefined' ? undefined : openPdfPicker,
+  notify: (message, tone) => void toasts.show(message, { tone }),
 });
 
 /** The sheet or dialog that is open, if any. */
@@ -214,5 +277,6 @@ export const start: () => void = createAppStarter({
   registerServiceWorker,
   onIncomingFiles,
   onLaunchUrl,
+  onShareProblem,
   startDevTools,
 });

@@ -4,7 +4,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { expect, test, type App } from './support/app';
-import { fixture, fixturePath, unlockedName } from './support/files';
+import { LARGE_PDF, fixture, fixturePath, unlockedName } from './support/files';
 import { expectUnlockedCopy } from './support/pdf';
 import { readZip } from './support/zip';
 
@@ -165,8 +165,8 @@ test.describe('unlock several files', () => {
       .click();
     await app.expectState(unicode.file, 'done');
 
-    // The last one goes back to the shared field.
-    await expect(app.cardField(latin.file)).toHaveCount(0);
+    // The last one keeps its own field; the shared one opens it just as well.
+    await expect(app.cardField(latin.file)).toBeVisible();
     await app.unlockWith(latin.userPassword!);
     await app.expectState(latin.file, 'done');
     await expect(app.dock).toContainText(app.t('status.unlocked', { count: 4 }));
@@ -178,6 +178,74 @@ test.describe('unlock several files', () => {
     for (const [index, source] of [opened, chinese, unicode, latin].entries()) {
       await expectUnlockedCopy(entries[index]!.data, source);
     }
+  });
+
+  test('a card keeps its field, and what was typed into it, while another card is retried', async ({
+    app,
+    page,
+  }) => {
+    // A large file, so that its retry takes long enough to be looked at.
+    test.setTimeout(90_000);
+    const small = fixture('aes-256-r6.pdf');
+    await app.open();
+    await app.addFiles([LARGE_PDF.path, fixturePath(small.file)]);
+    await app.analysed(2);
+    await app.unlockWith('opens neither');
+    await app.expectState(LARGE_PDF.name, 'wrong-password');
+    await app.expectState(small.file, 'wrong-password');
+
+    // Typed into the second card, not sent yet.
+    await app.cardField(small.file).fill(small.userPassword!);
+
+    // From here on every change of the list is looked at: the second card must not lose its
+    // field or its text, and must not change its height, whatever the first card does.
+    const cardId = (await app.card(small.file).getAttribute('data-entry'))!;
+    await page.evaluate(
+      ({ id, typed }) => {
+        const card = document.querySelector<HTMLElement>(`[data-entry="${id}"]`)!;
+        const seen = { heights: [] as number[], lost: 0 };
+        const look = (): void => {
+          const height = Math.round(card.getBoundingClientRect().height);
+          if (!seen.heights.includes(height)) seen.heights.push(height);
+          const field = card.querySelector<HTMLInputElement>('[data-inline-password]');
+          if (!card.isConnected || field?.value !== typed) seen.lost++;
+        };
+        look();
+        new MutationObserver(look).observe(document.body, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          characterData: true,
+        });
+        (window as unknown as { e2eSibling: typeof seen }).e2eSibling = seen;
+      },
+      { id: cardId, typed: small.userPassword! },
+    );
+
+    // The first card's retry fails …
+    await app.cardField(LARGE_PDF.name).fill('still wrong');
+    await app.cardField(LARGE_PDF.name).press('Enter');
+    await expect(app.cardField(LARGE_PDF.name)).toHaveAttribute('aria-invalid', 'true');
+    await expect(app.cardField(LARGE_PDF.name)).toBeFocused();
+    await expect(app.cardField(small.file)).toHaveValue(small.userPassword!);
+
+    // … and then works, which takes a moment.
+    await app.cardField(LARGE_PDF.name).fill(LARGE_PDF.password);
+    await app.cardField(LARGE_PDF.name).press('Enter');
+    await app.expectState(LARGE_PDF.name, 'done');
+
+    const seen = await page.evaluate(
+      () => (window as unknown as { e2eSibling: { heights: number[]; lost: number } }).e2eSibling,
+    );
+    expect(seen.lost, 'renders in which the second card had lost its field or its text').toBe(0);
+    expect(seen.heights, 'heights of the second card along the way').toHaveLength(1);
+
+    // It is the only locked file now and still has its own field, with the password in it.
+    await app.expectState(small.file, 'wrong-password');
+    await expect(app.cardField(small.file)).toHaveValue(small.userPassword!);
+    await app.cardField(small.file).press('Enter');
+    await app.expectState(small.file, 'done');
+    await expect(app.dock).toContainText(app.t('status.unlocked', { count: 2 }));
   });
 
   test('a password that opens nothing is rejected at the shared field', async ({ app }) => {

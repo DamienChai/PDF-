@@ -622,6 +622,188 @@ describe('encrypt options', () => {
   });
 });
 
+// The trailer is what says a file is encrypted. qpdf rebuilds a lost one without /Encrypt, which
+// would turn an encrypted file into an "unencrypted" one made of ciphertext.
+describe('a file that lost its trailer', () => {
+  const LOST_TRAILER = 'unable to find trailer dictionary';
+  const REFUSAL = 'the trailer is lost and the rest shows signs of encryption';
+
+  function cut(file: string, keep: number): Blob {
+    const bytes = fixtureBytes(file);
+    return new Blob([bytes.subarray(0, Math.floor(bytes.length * keep)) as BlobPart]);
+  }
+
+  function edited(file: string, change: (text: string) => string): Blob {
+    return new Blob([Buffer.from(change(latin1(fixtureBytes(file))), 'latin1') as BlobPart]);
+  }
+
+  async function failure(promise: Promise<unknown>): Promise<PdfEngineError | null> {
+    try {
+      await promise;
+      return null;
+    } catch (error) {
+      expect(error).toBeInstanceOf(PdfEngineError);
+      return error as PdfEngineError;
+    }
+  }
+
+  const misspelt = (text: string): string => text.replace(/trailer(?=\s*<<)/, 'trailex');
+  // Everything up to the cross-reference table: all objects, no trailer.
+  const withoutTail = (text: string): string => text.slice(0, text.lastIndexOf('\nxref') + 1);
+
+  test('unencrypted: rebuilt, and the warnings say so', async () => {
+    const f = fixture('truncated-plain.pdf');
+    const inspected = await engine.inspect(fixtureBlob(f.file));
+    expect(inspected.encrypted).toBe(false);
+    expect(inspected.pageCount).toBe(f.pageCount);
+    expect(inspected.warnings.some((warning) => warning.includes(LOST_TRAILER))).toBe(true);
+
+    const locked = await engine.process({
+      file: fixtureBlob(f.file),
+      password: '',
+      operation: { kind: 'encrypt', options: aes256('new', '') },
+    });
+    expect(locked.verified).toBe(true);
+    // The output is a sound file: qpdf's made-up trailer has no /Size, the written one does.
+    expect(latin1(await blobBytes(locked.blob))).toMatch(/trailer <<[^>]*\/Size \d+/);
+    expect((await engine.inspect(locked.blob, 'new')).warnings).toEqual([]);
+    const unlocked = await engine.process({
+      file: locked.blob,
+      password: 'new',
+      operation: { kind: 'decrypt' },
+    });
+    expect(containsStreams(await blobBytes(unlocked.blob), f.pageContentSha256)).toBe(true);
+  });
+
+  test('unencrypted files stay repairable wherever they are cut', async () => {
+    const plain = okFixtures.filter((f) => !f.encrypted);
+    expect(plain.length).toBeGreaterThanOrEqual(6);
+    let rebuilt = 0;
+    for (const f of plain) {
+      for (let keep = 0.3; keep < 1; keep += 0.02) {
+        const error = await failure(engine.inspect(cut(f.file, keep)));
+        // Too little left to rebuild is fine; being taken for an encrypted file is not.
+        expect(error?.detail ?? '').not.toContain(REFUSAL);
+        rebuilt += error ? 0 : 1;
+      }
+    }
+    expect(rebuilt).toBeGreaterThan(100);
+  });
+
+  const encrypted = okFixtures.filter((f) => f.encrypted);
+
+  test.each(encrypted)('$file cut short is never taken for an unencrypted file', async (f) => {
+    for (const keep of [0.5, 0.7, 0.8, 0.9, 0.95, 0.99]) {
+      const file = cut(f.file, keep);
+      const error = await failure(engine.inspect(file, f.userPassword ?? ''));
+      if (error) {
+        expect(error.code).toBe('damaged');
+        const lock = { kind: 'encrypt', options: aes256('new', '') } as const;
+        expect(await codeOf(engine.process({ file, password: '', operation: lock }))).toBe(
+          'damaged',
+        );
+      } else {
+        // Linearized files keep a second trailer at the front.
+        expect((await engine.inspect(file, f.userPassword ?? '')).encrypted).toBe(true);
+      }
+    }
+  });
+
+  test('a misspelt trailer keyword or a cut inside the trailer', async () => {
+    for (const name of [
+      'aes-256-r6.pdf',
+      'aes-128-r4.pdf',
+      'rc4-128-r3.pdf',
+      'pypdf-aes-256.pdf',
+    ]) {
+      const variants = [
+        edited(name, misspelt),
+        edited(name, (text) => text.slice(0, text.lastIndexOf('/Encrypt') - 1)),
+        edited(name, (text) => text.slice(0, text.lastIndexOf('trailer'))),
+      ];
+      for (const file of variants) {
+        const error = await failure(engine.inspect(file, 'user'));
+        expect(error?.code).toBe('damaged');
+        expect(error?.detail).toContain(REFUSAL);
+        expect(
+          await codeOf(engine.process({ file, password: 'user', operation: { kind: 'decrypt' } })),
+        ).toBe('damaged');
+      }
+    }
+  });
+
+  test('damage that keeps the trailer still opens as an encrypted file', async () => {
+    const f = fixture('aes-256-r6.pdf');
+    const variants = [
+      edited(f.file, (text) => `${text}\n<html>${'x'.repeat(5000)}</html>\n`),
+      edited(f.file, (text) => text.replace(/startxref\s+\d+/, 'startxref\n12')),
+      edited(f.file, (text) => text.slice(0, -20)),
+    ];
+    for (const file of variants) {
+      expect((await engine.inspect(file, f.userPassword!)).access).toBe('user');
+    }
+  });
+
+  // Each of the three traces is enough by itself. The files are unencrypted ones made to carry
+  // exactly one trace, next to the same damage without it.
+  test('an /Encrypt entry', async () => {
+    expect((await engine.inspect(edited('plain.pdf', misspelt))).encrypted).toBe(false);
+    const file = edited('plain.pdf', (text) =>
+      misspelt(text).replace(/trailex\s*<</, 'trailex << /Encrypt 99 0 R'),
+    );
+    const error = await failure(engine.inspect(file));
+    expect(error?.code).toBe('damaged');
+    expect(error?.detail).toContain('an /Encrypt entry');
+  });
+
+  test('an encryption dictionary', async () => {
+    expect((await engine.inspect(edited('plain.pdf', withoutTail))).encrypted).toBe(false);
+    const dictionary = (keys: string): string => `99 0 obj\n<< ${keys} >>\nendobj\n`;
+    const zeros = `<${'00'.repeat(32)}>`;
+    const standard = `/Filter /Standard /V 2 /R 3 /Length 128 /P -4 /O ${zeros} /U ${zeros}`;
+    const error = await failure(
+      engine.inspect(edited('plain.pdf', (text) => withoutTail(text) + dictionary(standard))),
+    );
+    expect(error?.code).toBe('damaged');
+    expect(error?.detail).toContain('an encryption dictionary');
+
+    // Neither a dictionary of another kind nor half of one counts.
+    for (const keys of ['/Filter /FlateDecode /O 1 /U 2', `/Filter /Standard /O ${zeros}`]) {
+      const file = edited('plain.pdf', (text) => withoutTail(text) + dictionary(keys));
+      expect((await engine.inspect(file)).encrypted).toBe(false);
+    }
+  });
+
+  test('stream data that cannot be what its filter says', async () => {
+    const error = await failure(engine.inspect(fixtureBlob('truncated-early-r4.pdf'), 'user'));
+    expect(error?.code).toBe('damaged');
+    expect(error?.detail).toContain('stream data that does not match its filter');
+    expect(latin1(fixtureBytes('truncated-early-r4.pdf'))).not.toMatch(/\/Encrypt|\/Standard/);
+
+    // A content stream (nothing but /Length in its dictionary) that is not text.
+    const scrambled = edited('plain.pdf', (text) =>
+      withoutTail(text).replace(/(<< \/Length \d+ >>\nstream\n)q 60/, '$1\x9c\xf1\x07\xa3'),
+    );
+    const content = await failure(engine.inspect(scrambled));
+    expect(content?.code).toBe('damaged');
+    expect(content?.detail).toContain('stream data that does not match its filter');
+  });
+
+  test('the scan works across the windows it reads the file in', async () => {
+    // 3 MiB of filler in front of the only trace, which then lies in the third window.
+    const filler = `%${'x'.repeat(1023)}\n`.repeat(3 * 1024);
+    const file = edited('plain.pdf', (text) => {
+      const body = withoutTail(text);
+      const header = body.slice(0, body.indexOf('1 0 obj'));
+      return `${header}${filler}${body.slice(header.length)}99 0 obj\n<< /Encrypt 5 0 R >>\nendobj\n`;
+    });
+    expect(file.size).toBeGreaterThan(3 * 1024 * 1024);
+    const error = await failure(engine.inspect(file));
+    expect(error?.code).toBe('damaged');
+    expect(error?.detail).toContain('an /Encrypt entry at offset 31');
+  });
+});
+
 describe('robustness', () => {
   test('the engine stays usable after every kind of failure', async () => {
     const good = fixture('aes-256-r6.pdf');

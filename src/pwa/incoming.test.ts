@@ -3,7 +3,9 @@ import {
   createIncomingFiles,
   onIncomingFiles,
   onLaunchUrl,
+  onShareProblem,
   type IncomingEnvironment,
+  type ShareProblem,
 } from './incoming';
 import { stashFiles } from './share-stash';
 import { memoryCacheStorage, settle } from './testing';
@@ -70,6 +72,111 @@ function recorder() {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+const brokenStorage = {
+  has: async () => {
+    throw new DOMException('denied', 'SecurityError');
+  },
+} as unknown as CacheStorage;
+
+describe('incoming files: a share that did not arrive', () => {
+  it('reports that nothing arrived when the worker could not keep the files', async () => {
+    const { state, incoming } = setup(`${SCOPE}?source=share-target&lost=all`);
+    const problems: ShareProblem[] = [];
+    const files = recorder();
+    incoming.onIncomingFiles(files.handler);
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+    expect(problems).toEqual([{ received: 0, lost: null }]);
+    expect(files.received).toEqual([]);
+    // A reload is an ordinary start: no marker, no second report.
+    expect(state.url).toBe(SCOPE);
+  });
+
+  it('counts what was lost next to what arrived', async () => {
+    const { env, state, incoming } = setup(`${SCOPE}?mode=lock&source=share-target&lost=1`);
+    await stashFiles(env.caches!, SCOPE, [pdf('a.pdf'), pdf('b.pdf')]);
+    const problems: ShareProblem[] = [];
+    const files = recorder();
+    incoming.onIncomingFiles(files.handler);
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+    expect(files.received).toEqual([[['a.pdf', 'b.pdf'], 'share-target']]);
+    expect(problems).toEqual([{ received: 2, lost: 1 }]);
+    expect(state.url).toBe(`${SCOPE}?mode=lock`);
+  });
+
+  it('reports a share whose files the page cannot get at', async () => {
+    for (const caches of [brokenStorage, undefined]) {
+      const { env, incoming } = setup(`${SCOPE}?source=share-target`);
+      env.caches = caches;
+      const problems: ShareProblem[] = [];
+      incoming.onShareProblem((problem) => problems.push(problem));
+      await settle();
+      expect(problems).toEqual([{ received: 0, lost: null }]);
+    }
+  });
+
+  it('has nothing to report when storage is unusable and nothing was shared', async () => {
+    for (const caches of [brokenStorage, undefined]) {
+      const { env, incoming, launch } = setup(`${SCOPE}?mode=lock`);
+      env.caches = caches;
+      const problems: ShareProblem[] = [];
+      incoming.onShareProblem((problem) => problems.push(problem));
+      launch({ targetURL: `${SCOPE}?mode=unlock` });
+      await settle();
+      expect(problems).toEqual([]);
+    }
+  });
+
+  it('is quiet about a share that arrived, even if another window took the files', async () => {
+    const { incoming } = setup(`${SCOPE}?source=share-target`);
+    const problems: ShareProblem[] = [];
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+    expect(problems).toEqual([]);
+  });
+
+  it('reports once when the launch that loaded the page is replayed', async () => {
+    const url = `${SCOPE}?source=share-target&lost=2`;
+    const { incoming, launch } = setup(url);
+    launch({ targetURL: url });
+    const problems: ShareProblem[] = [];
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+    expect(problems).toEqual([{ received: 0, lost: 2 }]);
+  });
+
+  it('reports a share into the running window', async () => {
+    const { state, incoming, launch } = setup();
+    const problems: ShareProblem[] = [];
+    incoming.onShareProblem((problem) => problems.push(problem));
+    await settle();
+    state.now = 60_000;
+    launch({ targetURL: `${SCOPE}?source=share-target&lost=all` });
+    await settle();
+    expect(problems).toEqual([{ received: 0, lost: null }]);
+  });
+
+  it('keeps the report until somebody listens, and gives it once', async () => {
+    const { incoming } = setup(`${SCOPE}?source=share-target&lost=all`);
+    incoming.onIncomingFiles(() => undefined);
+    await settle();
+    const first: ShareProblem[] = [];
+    const off = incoming.onShareProblem((problem) => first.push(problem));
+    await settle();
+    off();
+    const second: ShareProblem[] = [];
+    incoming.onShareProblem((problem) => second.push(problem));
+    await settle();
+    expect(first).toEqual([{ received: 0, lost: null }]);
+    expect(second).toEqual([]);
+  });
+
+  it('is a no-op outside a browser', () => {
+    expect(() => onShareProblem(() => undefined)()).not.toThrow();
+  });
 });
 
 describe('incoming files: share target', () => {

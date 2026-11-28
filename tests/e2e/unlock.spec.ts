@@ -2,9 +2,10 @@
  * Unlock mode, one file at a time: the main job of the app. Real fixtures, the real engine, and
  * every saved file is checked outside the browser.
  */
+import { readFileSync } from 'node:fs';
 import { expect, test } from './support/app';
-import { fixture, unlockedName } from './support/files';
-import { expectUnlockedCopy } from './support/pdf';
+import { fixture, fixturePath, lockedName, unlockedName } from './support/files';
+import { expectUnlockedCopy, inspectPdf } from './support/pdf';
 
 test.describe('unlock one file', () => {
   test('a wrong password is rejected in place, the right one gives an unprotected copy', async ({
@@ -164,6 +165,58 @@ test.describe('unlock one file', () => {
   });
 });
 
+test.describe('a download that stopped early', () => {
+  // Without its trailer nothing in a file says "encrypted" any more. A protected file in that
+  // state must not pass for an unprotected one that was repaired.
+  test('a protected file is called damaged in both modes, an unprotected one is repaired', async ({
+    app,
+  }) => {
+    const repaired = fixture('truncated-plain.pdf');
+    const cutOff = ['truncated-r6.pdf', 'truncated-early-r4.pdf'];
+    await app.open();
+    await app.addFixtures(...cutOff, repaired.file);
+    await app.analysed(3);
+
+    for (const file of cutOff) {
+      await app.expectState(file, 'error');
+      await expect(app.card(file).locator('.problem__title')).toHaveText(
+        app.t('error.damaged.title'),
+      );
+      await expect(app.card(file)).not.toContainText(app.t('chip.notEncrypted'));
+      // Trying again cannot help.
+      await expect(
+        app.card(file).getByRole('button', { name: app.t('entry.retry'), exact: true }),
+      ).toHaveCount(0);
+    }
+    await app.expectState(repaired.file, 'not-encrypted');
+    const warnings = (await inspectPdf(readFileSync(fixturePath(repaired.file)))).warnings;
+    await expect(app.card(repaired.file)).toContainText(
+      app.t('entry.warnings', { count: warnings.length }),
+    );
+
+    // Lock mode: the damaged ones stay out, the repaired one is locked and is a sound file.
+    await app.switchMode('lock');
+    for (const file of cutOff) await app.expectState(file, 'error', 'lock');
+    await app.expectState(repaired.file, 'ready', 'lock');
+    await expect(app.dockButton('action.lock')).toBeVisible();
+    const password = 'for-the-repaired-one';
+    await app.lockPassword.fill(password);
+    await app.lockConfirmation.fill(password);
+    await app.press(app.dockButton('action.lock'));
+    await app.expectState(repaired.file, 'done', 'lock');
+    for (const file of cutOff) await app.expectState(file, 'error', 'lock');
+
+    const saved = await app.saveAll();
+    expect(saved.name).toBe(lockedName(repaired.file));
+    expect(await inspectPdf(saved.bytes)).toMatchObject({ encrypted: true, access: 'locked' });
+    expect(await inspectPdf(saved.bytes, password)).toMatchObject({
+      access: 'both',
+      pageCount: repaired.pageCount,
+      warnings: [],
+    });
+  });
+});
+
 test.describe('a file that only carries restrictions', () => {
   test('is freed with one tap, without a password', async ({ app }) => {
     const source = fixture('owner-only-r6.pdf');
@@ -172,8 +225,8 @@ test.describe('a file that only carries restrictions', () => {
 
     await app.expectState(source.file, 'restricted');
     // What is restricted, in words.
-    await expect(app.card(source.file)).toContainText(app.t('restriction.print'));
-    await expect(app.card(source.file)).toContainText(app.t('restriction.extract'));
+    await expect(app.card(source.file)).toContainText(app.listed('restriction.print'));
+    await expect(app.card(source.file)).toContainText(app.listed('restriction.extract'));
     await expect(app.card(source.file)).toContainText(
       app.t('format.pages', { count: source.pageCount }),
     );

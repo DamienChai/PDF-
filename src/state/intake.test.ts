@@ -1,24 +1,98 @@
 import { describe, expect, it, vi } from 'vitest';
+import { tick } from '../../tests/support/jobs-harness';
 import { DRAG_IDLE_MS, createIntake, filesFromTransfer, type IntakeEnvironment } from './intake';
+
+interface FakeItem {
+  kind: string;
+  getAsFile(): File | null;
+  webkitGetAsEntry?: () => unknown;
+}
 
 interface FakeTransfer {
   types: string[];
   files: File[];
+  items?: FakeItem[];
   dropEffect?: string;
 }
 
-function transferOf(files: File[] = [new File(['%PDF-'], 'a.pdf')]): FakeTransfer {
-  return { types: ['Files'], files };
+type Dropped = File | FakeFolder;
+
+/** A folder as the browser presents it: an entry that can be listed, and a `File` that cannot be read. */
+interface FakeFolder {
+  isFile: false;
+  isDirectory: true;
+  name: string;
+  createReader(): {
+    readEntries(done: (batch: unknown[]) => void, fail: (e: unknown) => void): void;
+  };
 }
 
-const textTransfer: FakeTransfer = { types: ['text/plain'], files: [] };
+function pdf(name: string): File {
+  return new File(['%PDF-'], name);
+}
+
+function entryOf(item: Dropped): unknown {
+  if (!(item instanceof File)) return item;
+  return {
+    isFile: true,
+    isDirectory: false,
+    name: item.name,
+    file: (done: (file: File) => void) => queueMicrotask(() => done(item)),
+  };
+}
+
+function folder(name: string, children: Dropped[], broken = false): FakeFolder {
+  return {
+    isFile: false,
+    isDirectory: true,
+    name,
+    createReader() {
+      const rest = children.map(entryOf);
+      return {
+        // Two at a time, then an empty batch, the way browsers page through a directory.
+        readEntries(done, fail) {
+          queueMicrotask(() => (broken ? fail(new Error('denied')) : done(rest.splice(0, 2))));
+        },
+      };
+    },
+  };
+}
+
+/** The `File` a browser lists for a dropped folder: reading it fails. */
+function folderFile(name: string): File {
+  const file = new File([], name);
+  file.slice = () =>
+    ({ arrayBuffer: () => Promise.reject(new DOMException('gone', 'NotFoundError')) }) as Blob;
+  return file;
+}
+
+/** A transfer as current browsers build it: every file is also an item that knows its entry. */
+function transferOf(dropped: Dropped[] = [pdf('a.pdf')]): FakeTransfer {
+  return {
+    types: ['Files'],
+    files: dropped.map((item) => (item instanceof File ? item : folderFile(item.name))),
+    items: dropped.map((item) => ({
+      kind: 'file',
+      getAsFile: () => (item instanceof File ? item : folderFile(item.name)),
+      webkitGetAsEntry: () => entryOf(item),
+    })),
+  };
+}
+
+const textTransfer: FakeTransfer = {
+  types: ['text/plain'],
+  files: [],
+  items: [{ kind: 'string', getAsFile: () => null }],
+};
 
 function setup(overrides: Partial<IntakeEnvironment> = {}) {
   const target = new EventTarget();
   const added: Array<{ names: string[]; source: string }> = [];
+  const notices: string[] = [];
   let timer: (() => void) | undefined;
   const intake = createIntake({
     addFiles: (files, source) => added.push({ names: files.map((file) => file.name), source }),
+    notify: (message, tone) => notices.push(`${message.key} (${tone})`),
     target,
     setTimeout: (callback) => {
       timer = callback;
@@ -40,6 +114,7 @@ function setup(overrides: Partial<IntakeEnvironment> = {}) {
     intake,
     target,
     added,
+    notices,
     detach,
     fire,
     /** Lets the idle watchdog fire, as if no drag event had arrived for a while. */
@@ -157,6 +232,154 @@ describe('drag and drop', () => {
     fire('drop', transferOf());
     expect(intake.dragActive.value).toBe(false);
     expect(added).toEqual([]);
+  });
+});
+
+describe('dropped folders', () => {
+  const tree = (): FakeFolder =>
+    folder('scans', [
+      pdf('b.pdf'),
+      new File(['notes'], 'notes.txt'),
+      folder('2024', [
+        pdf('march.PDF'),
+        folder('raw', [pdf('deep.pdf')]),
+        pdf('10.pdf'),
+        pdf('9.pdf'),
+      ]),
+      pdf('a.pdf'),
+      new File(['x'], '.hidden.pdf'),
+      folder('.git', [pdf('object.pdf')]),
+      new File(['jpeg'], 'photo.jpg'),
+    ]);
+
+  it('adds the PDFs inside, at any depth, and never the folder itself', async () => {
+    const { added, notices, fire } = setup();
+    const drop = fire('drop', transferOf([tree()]));
+    expect(drop.defaultPrevented).toBe(true);
+    await tick();
+    expect(added).toEqual([
+      // Folder by folder in the order of the names; other files and hidden things are left out.
+      { names: ['9.pdf', '10.pdf', 'march.PDF', 'deep.pdf', 'a.pdf', 'b.pdf'], source: 'drop' },
+    ]);
+    expect(notices).toEqual([]);
+  });
+
+  it('adds loose files at once and the content of folders when it has been read', async () => {
+    const { added, fire } = setup();
+    fire('drop', transferOf([pdf('loose.pdf'), folder('more', [pdf('inside.pdf')]), pdf('z.pdf')]));
+    expect(added).toEqual([{ names: ['loose.pdf', 'z.pdf'], source: 'drop' }]);
+    await tick();
+    expect(added).toEqual([
+      { names: ['loose.pdf', 'z.pdf'], source: 'drop' },
+      { names: ['inside.pdf'], source: 'drop' },
+    ]);
+  });
+
+  it('says so when a folder holds no PDF', async () => {
+    const { added, notices, fire } = setup();
+    fire('drop', transferOf([folder('photos', [new File(['x'], 'a.jpg'), folder('empty', [])])]));
+    await tick();
+    expect(added).toEqual([]);
+    expect(notices).toEqual(['toast.folderEmpty (error)']);
+  });
+
+  it('stops at the limit of files and says that not everything was added', async () => {
+    const many = Array.from({ length: 7 }, (_, index) => pdf(`${index}.pdf`));
+    const { added, notices, fire } = setup({
+      folderLimits: { maxFiles: 5, maxEntries: 100, maxDepth: 3 },
+    });
+    fire('drop', transferOf([folder('many', many), folder('later', [pdf('never.pdf')])]));
+    await tick();
+    expect(added).toEqual([
+      { names: ['0.pdf', '1.pdf', '2.pdf', '3.pdf', '4.pdf'], source: 'drop' },
+    ]);
+    expect(notices).toEqual(['toast.folderLimit (neutral)']);
+  });
+
+  it('is quiet about a folder that holds exactly as much as the limit', async () => {
+    const { added, notices, fire } = setup({
+      folderLimits: { maxFiles: 2, maxEntries: 3, maxDepth: 1 },
+    });
+    fire(
+      'drop',
+      transferOf([folder('two', [pdf('a.pdf'), pdf('b.pdf'), new File([''], 'c.txt')])]),
+    );
+    await tick();
+    expect(added).toEqual([{ names: ['a.pdf', 'b.pdf'], source: 'drop' }]);
+    expect(notices).toEqual([]);
+  });
+
+  it('stops at the limit of entries, whatever they are', async () => {
+    const junk = Array.from({ length: 6 }, (_, index) => new File(['x'], `${index}.txt`));
+    const { added, notices, fire } = setup({
+      folderLimits: { maxFiles: 5, maxEntries: 4, maxDepth: 3 },
+    });
+    fire('drop', transferOf([folder('junk', [...junk, pdf('last.pdf')])]));
+    await tick();
+    expect(added).toEqual([]);
+    expect(notices).toEqual(['toast.folderLimit (neutral)']);
+  });
+
+  it('does not go deeper than the limit of levels', async () => {
+    const { added, notices, fire } = setup({
+      folderLimits: { maxFiles: 5, maxEntries: 100, maxDepth: 2 },
+    });
+    const nested = folder('1', [
+      pdf('one.pdf'),
+      folder('2', [pdf('two.pdf'), folder('3', [pdf('three.pdf')])]),
+    ]);
+    fire('drop', transferOf([nested]));
+    await tick();
+    expect(added).toEqual([{ names: ['two.pdf', 'one.pdf'], source: 'drop' }]);
+    expect(notices).toEqual(['toast.folderLimit (neutral)']);
+  });
+
+  it('asks for the files themselves when a folder cannot be read', async () => {
+    const { added, notices, fire } = setup();
+    fire('drop', transferOf([folder('locked', [pdf('a.pdf')], true)]));
+    await tick();
+    expect(added).toEqual([]);
+    expect(notices).toEqual(['toast.folderUnreadable (error)']);
+  });
+
+  it('keeps what it could read of a tree with an unreadable corner', async () => {
+    const { added, notices, fire } = setup();
+    fire(
+      'drop',
+      transferOf([folder('mixed', [folder('locked', [pdf('x.pdf')], true), pdf('ok.pdf')])]),
+    );
+    await tick();
+    expect(added).toEqual([{ names: ['ok.pdf'], source: 'drop' }]);
+    expect(notices).toEqual([]);
+  });
+
+  it('where the browser cannot tell folders from files, skips what cannot be read', async () => {
+    const { added, notices, fire } = setup();
+    // No items: only the list of files, in which a folder looks like any other file.
+    fire('drop', { types: ['Files'], files: [pdf('a.pdf'), folderFile('scans'), pdf('b.pdf')] });
+    expect(added).toEqual([]);
+    await tick();
+    expect(added).toEqual([{ names: ['a.pdf', 'b.pdf'], source: 'drop' }]);
+    expect(notices).toEqual(['toast.folderUnreadable (error)']);
+  });
+
+  it('takes files without an entry as they are', () => {
+    const { added, fire } = setup();
+    const file = pdf('synthetic.pdf');
+    fire('drop', {
+      types: ['Files'],
+      files: [file],
+      items: [{ kind: 'file', getAsFile: () => file, webkitGetAsEntry: () => null }],
+    });
+    expect(added).toEqual([{ names: ['synthetic.pdf'], source: 'drop' }]);
+  });
+
+  it('reads a pasted folder the same way', async () => {
+    const { added, fire } = setup();
+    const event = fire('paste', transferOf([folder('copied', [pdf('in.pdf')])]), 'clipboardData');
+    expect(event.defaultPrevented).toBe(true);
+    await tick();
+    expect(added).toEqual([{ names: ['in.pdf'], source: 'paste' }]);
   });
 });
 

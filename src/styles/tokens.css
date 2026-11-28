@@ -246,11 +246,18 @@
   }
 }
 
+/* From here the two panes take the window's width (less the gutters) instead of leaving a
+   margin beside a list that could use the room. */
+@media (min-width: 1440px) {
+  :root {
+    --page-max: 1440px;
+  }
+}
+
 /* Large desktop windows: wider panes, and everything one step larger so that the content does
    not become an island of small text. */
 @media (min-width: 1600px) {
   :root {
-    --page-max: 1440px;
     --inspector-w: 420px;
   }
 }

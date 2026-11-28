@@ -261,6 +261,55 @@ describe('saving and sharing everything', () => {
   });
 });
 
+describe('unsaved work', () => {
+  it('is there from the start of a run until its result is saved', async () => {
+    const h = createHarness({ engine: { hold: 0.5 } });
+    await h.add('needs-password.pdf');
+    expect(h.jobs.unsavedWork.value).toBe(false);
+    const run = h.jobs.unlockAll(DEMO_PASSWORD);
+    await tick();
+    expect(h.states()).toEqual(['processing']);
+    expect(h.jobs.unsavedWork.value).toBe(true);
+    h.engine.release();
+    await run;
+    expect(h.jobs.unsavedWork.value).toBe(true);
+    await h.jobs.save(h.entry('needs-password.pdf').id);
+    expect(h.jobs.unsavedWork.value).toBe(false);
+  });
+
+  it('ends with a cancelled run, a discarded result and a failed run', async () => {
+    const h = createHarness({ engine: { hold: 0.5 } });
+    await h.add('needs-password.pdf');
+    void h.jobs.unlockAll(DEMO_PASSWORD);
+    await tick();
+    h.jobs.cancelAll();
+    expect(h.jobs.unsavedWork.value).toBe(false);
+
+    h.engine.release();
+    await h.jobs.unlockAll(DEMO_PASSWORD);
+    expect(h.jobs.unsavedWork.value).toBe(true);
+    h.jobs.redo(h.entry('needs-password.pdf').id);
+    expect(h.jobs.unsavedWork.value).toBe(false);
+
+    await h.jobs.unlockAll('not the password');
+    expect(h.states()).toEqual(['wrong-password']);
+    expect(h.jobs.unsavedWork.value).toBe(false);
+  });
+
+  it('covers both modes, whichever is on screen', async () => {
+    const h = await unlocked(['needs-password.pdf']);
+    h.mode.value = 'lock';
+    expect(h.jobs.summary.value.results.unsaved).toBe(0);
+    expect(h.jobs.unsavedWork.value).toBe(true);
+  });
+
+  it('does not end with sharing: a shared result is not a saved one', async () => {
+    const h = await unlocked(['needs-password.pdf']);
+    await h.jobs.shareAll();
+    expect(h.jobs.unsavedWork.value).toBe(true);
+  });
+});
+
 describe('auto-save', () => {
   it('downloads a single result as soon as it is done, without a dialog', async () => {
     const h = createHarness({ settings: { autoSave: true } });

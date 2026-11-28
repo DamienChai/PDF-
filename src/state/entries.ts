@@ -48,6 +48,11 @@ export interface EntryResult {
   warnings: readonly string[];
   /** Encryption of the output; null for unlocked files. */
   algorithm: EncryptOptions['algorithm'] | null;
+  /**
+   * Lock: the number of the submitted settings that produced this output (see `lockApplied` of
+   * the controller); null for unlocked files. A number, so that no result carries a password.
+   */
+  settings: number | null;
   /** Saved, downloaded or auto-saved at least once. */
   saved: boolean;
 }
@@ -66,6 +71,11 @@ export interface Run {
   passwordRejected: boolean;
   /** Lock mode: "Lock" was pressed while this card had no current password. */
   passwordMissing: boolean;
+  /**
+   * Unlock mode: the card has its own retry field and keeps it until the file is unlocked,
+   * whatever happens to the other files meanwhile.
+   */
+  ownField: boolean;
   /** Reserved while processing, final once done. */
   outputName: string | null;
   result: EntryResult | null;
@@ -76,6 +86,7 @@ export const IDLE_RUN: Readonly<Run> = Object.freeze({
   status: 'idle',
   passwordRejected: false,
   passwordMissing: false,
+  ownField: false,
   outputName: null,
   result: null,
   error: null,
@@ -277,8 +288,9 @@ function passwordFieldFor(
   context: ViewContext,
 ): PasswordFieldView | null {
   if (context.mode === 'unlock') {
-    // A single locked file is retried with the main password field; several each get their own.
-    if (state !== 'wrong-password' || context.lockedCount <= 1) return null;
+    // A single locked file is retried with the main password field; several each get their own,
+    // and a card that has its own keeps it.
+    if (state !== 'wrong-password' || !(run.ownField || context.lockedCount > 1)) return null;
     return {
       kind: 'retry',
       label: { key: 'entry.password.label' },
@@ -524,6 +536,11 @@ export interface Summary {
   /** Files the primary action would process. */
   actionable: number;
   /**
+   * Lock: finished files among them. They were locked with other settings than the ones about
+   * to be submitted and are locked again, so that one password opens every result.
+   */
+  relock: number;
+  /**
    * Unlock: files that need a password (never tried, or rejected). Lock: encrypted files whose
    * card still waits for the current password.
    */
@@ -565,6 +582,8 @@ export interface SummaryItem {
   run: Run;
   /** Lock mode: the card's current-password field is filled in. */
   hasCurrentPassword: boolean;
+  /** Lock mode: the result was made with other settings than the ones about to be submitted. */
+  outdated?: boolean;
 }
 
 export interface SummaryContext {
@@ -595,6 +614,7 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
   let notEncrypted = 0;
   let lockReady = 0;
   let lockWaiting = 0;
+  let outdated = 0;
   let rejected = 0;
   let unsaved = 0;
   let totalSize = 0;
@@ -613,6 +633,7 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
           totalSize += item.run.result.size;
           if (!item.run.result.saved) unsaved++;
         }
+        if (mode === 'lock' && item.outdated) outdated++;
         break;
       case 'error':
         failed++;
@@ -643,7 +664,11 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
   }
 
   const total = items.length;
-  const actionable = mode === 'unlock' ? locked + restricted : lockReady;
+  // Finished files are only locked again along with something that is still to be locked:
+  // while everything is finished there is no form to submit other settings with.
+  const relock = lockReady + lockWaiting > 0 ? outdated : 0;
+  const lockable = lockReady + relock;
+  const actionable = mode === 'unlock' ? locked + restricted : lockable;
   const needPassword = mode === 'unlock' ? locked : lockWaiting;
   const busy = analysing > 0 || processing > 0;
 
@@ -666,9 +691,9 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
   } else if (mode === 'lock' && lockReady + lockWaiting > 0) {
     primary = {
       kind: 'lock',
-      label: countLabel(lockReady, 'action.lock'),
-      count: lockReady,
-      enabled: !busy && lockReady > 0,
+      label: countLabel(lockable, 'action.lock'),
+      count: lockable,
+      enabled: !busy && lockable > 0,
     };
   }
 
@@ -698,7 +723,7 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
   } else if (phase === 'analysing') {
     status = { key: 'status.analysing' };
   } else if (phase === 'ready') {
-    if (mode === 'lock' && lockReady === 0) status = { key: 'status.nothingToLock' };
+    if (mode === 'lock' && lockable === 0) status = { key: 'status.nothingToLock' };
   } else if (phase === 'finished') {
     status = {
       key: mode === 'unlock' ? 'status.unlocked' : 'status.locked',
@@ -720,6 +745,7 @@ export function summarize(items: readonly SummaryItem[], context: SummaryContext
     total,
     analysing,
     actionable,
+    relock: mode === 'lock' ? relock : 0,
     needPassword,
     restricted: mode === 'unlock' ? restricted : 0,
     notEncrypted: mode === 'unlock' ? notEncrypted : 0,

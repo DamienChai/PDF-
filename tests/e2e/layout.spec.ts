@@ -3,6 +3,9 @@
  * the app are visited and measured:
  *
  *   - the page never scrolls sideways and nothing reaches outside the window;
+ *   - no label is cut off with an ellipsis and none is squeezed out of its button (file names
+ *     are the exception: they are shortened on purpose);
+ *   - nothing in the pinned list header reaches below it, visible or not;
  *   - the primary button is completely on screen and can be pressed;
  *   - a focused field comes to rest clear of the pinned action area and the top bar;
  *   - the last file of a long list can be scrolled clear of the pinned action area;
@@ -16,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 import { devices, type Locator, type Page } from '@playwright/test';
 import { expect, test, type App } from './support/app';
-import { fixturePath } from './support/files';
+import { LARGE_PDF, fixturePath } from './support/files';
 
 interface Size {
   name: string;
@@ -32,6 +35,8 @@ const SIZES: readonly Size[] = [
   { name: 'Pixel 412×915', width: 412, height: 915, mobile: true },
   { name: 'Pixel with keyboard 412×520', width: 412, height: 520, mobile: true, keyboardFrom: 915 },
   { name: 'desktop 1440×900', width: 1440, height: 900, mobile: false },
+  // A narrower list beside the inspector: files as wide cards instead of table rows.
+  { name: 'laptop 1280×800', width: 1280, height: 800, mobile: false },
 ];
 const LOCALES = ['zh-CN', 'en-US'] as const;
 const THEMES = ['light', 'dark'] as const;
@@ -92,6 +97,125 @@ function overflow(page: Page): Promise<string[]> {
   });
 }
 
+/**
+ * Text that does not get the room it needs: cut off with an ellipsis, clamped to fewer lines than
+ * it has, or wider than the inside of its button or chip. File names are shortened on purpose
+ * and fields scroll; what is hidden from sight for screen readers only does not count.
+ */
+function cutOff(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const problems: string[] = [];
+    const describe = (element: Element): string => {
+      const text = (element.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40);
+      const classes = element.getAttribute('class');
+      return `<${element.tagName.toLowerCase()}${classes ? ` class="${classes}"` : ''}> "${text}"`;
+    };
+    const hiddenFromSight = (element: Element): boolean => {
+      for (let node: Element | null = element; node && node !== document.body;) {
+        const style = getComputedStyle(node);
+        if (style.clipPath !== 'none' && node.getBoundingClientRect().width <= 2) return true;
+        node = node.parentElement;
+      }
+      return false;
+    };
+    const seen = (element: Element): boolean =>
+      (element as HTMLElement).checkVisibility({ checkVisibilityCSS: true }) &&
+      !hiddenFromSight(element);
+
+    for (const element of document.body.querySelectorAll('*')) {
+      if (element.closest('svg, .sr-only, .filename, [data-entry] h3')) continue;
+      if (element.matches('input, pre') || !(element.textContent ?? '').trim()) continue;
+      if (!seen(element)) continue;
+      const style = getComputedStyle(element);
+      const ellipsis =
+        style.textOverflow === 'ellipsis' &&
+        style.overflowX !== 'visible' &&
+        // Without tolerance: a label that is a fraction of a pixel too wide loses its last
+        // letters to the ellipsis all the same.
+        element.scrollWidth > element.clientWidth;
+      const clamped =
+        style.getPropertyValue('-webkit-line-clamp') !== 'none' &&
+        element.scrollHeight > element.clientHeight + 1;
+      if (ellipsis || clamped) problems.push(`${describe(element)} is cut off`);
+    }
+
+    for (const element of document.body.querySelectorAll('button, .chip, .badge')) {
+      if (element.closest('.sr-only') || !seen(element)) continue;
+      const style = getComputedStyle(element);
+      const box = element.getBoundingClientRect();
+      const left = box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+      const right = box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight);
+      let from = Infinity;
+      let to = -Infinity;
+      const take = (rect: DOMRect): void => {
+        if (rect.width === 0) return;
+        from = Math.min(from, rect.left);
+        to = Math.max(to, rect.right);
+      };
+      for (const node of element.childNodes) {
+        if (node instanceof Text) {
+          if (!node.data.trim()) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          take(range.getBoundingClientRect());
+        } else if (node instanceof Element) {
+          // A spinner's box turns with it; a label positioned out of the flow is not laid out
+          // inside the button.
+          if (node.matches('.sr-only, .icon--spin') || !seen(node)) continue;
+          if (getComputedStyle(node).position === 'absolute') continue;
+          take(node.getBoundingClientRect());
+        }
+      }
+      if (from < left - 1 || to > right + 1) {
+        problems.push(`${describe(element)} does not fit inside its own padding`);
+      }
+    }
+    return problems;
+  });
+}
+
+/**
+ * The list header is pinned while the list scrolls under it, which makes it a layer of its own
+ * in the browser. Nothing in it may reach below its bottom edge, not even the invisible hit area
+ * of a small control: Chromium has left stale pixels in the part of such a layer that nothing
+ * paints (a strip of the empty state's button under the header, every few page loads).
+ */
+function belowPinnedHeader(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const problems: string[] = [];
+    const header = document.querySelector('.listhead');
+    if (!header || getComputedStyle(header).position !== 'sticky') return problems;
+    const edge = header.getBoundingClientRect().bottom;
+    const describe = (element: Element): string => {
+      const text = (element.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 40);
+      return `<${element.tagName.toLowerCase()} class="${element.getAttribute('class') ?? ''}"> "${text}"`;
+    };
+    for (const element of header.querySelectorAll('*')) {
+      if (element.closest('svg') && element.tagName.toLowerCase() !== 'svg') continue;
+      const box = element.getBoundingClientRect();
+      if (box.height === 0) continue;
+      if (box.bottom > edge + 0.5) {
+        problems.push(
+          `${describe(element)} reaches ${(box.bottom - edge).toFixed(1)}px below the pinned list header`,
+        );
+      }
+      for (const pseudo of ['::before', '::after']) {
+        const style = getComputedStyle(element, pseudo);
+        if (style.content === 'none' || style.position !== 'absolute') continue;
+        const shift = style.transform === 'none' ? 0 : new DOMMatrix(style.transform).m42;
+        const bottom =
+          box.top + element.clientTop + parseFloat(style.top) + parseFloat(style.height) + shift;
+        if (bottom > edge + 0.5) {
+          problems.push(
+            `the hit area of ${describe(element)} reaches ${(bottom - edge).toFixed(1)}px below the pinned list header`,
+          );
+        }
+      }
+    }
+    return problems;
+  });
+}
+
 /** What covers an element at its centre and near its edges, if anything does. */
 function coveredBy(target: Locator): Promise<string[]> {
   return target.evaluate((element) => {
@@ -134,7 +258,11 @@ async function check(app: App, state: string, checks: Checks): Promise<void> {
   const problems: Problem[] = [];
   const note = (what: string): void => void problems.push({ what });
 
+  // What is still sliding or turning into place is measured where it comes to rest.
+  await app.settled();
   for (const found of await overflow(page)) note(found);
+  for (const found of await cutOff(page)) note(found);
+  for (const found of await belowPinnedHeader(page)) note(found);
 
   const scrollTo = (position: 'top' | 'end'): Promise<void> =>
     page.evaluate((where) => {
@@ -224,6 +352,79 @@ test.describe('the guards themselves', () => {
     });
     expect(await overflow(page)).toEqual([]);
     expect(await coveredBy(app.dockButton('action.unlockCount', { count: 2 }))).not.toEqual([]);
+  });
+
+  test('notice text that is cut off or squeezed', async ({ app, page }) => {
+    await app.open();
+    await app.addFixtures('aes-256-r6.pdf', 'owner-only-r6.pdf');
+    await app.analysed(2);
+    await app.unlockField.fill('user');
+    expect(await cutOff(page)).toEqual([]);
+
+    // A primary button too narrow for its label: the label ends in an ellipsis.
+    await page.addStyleTag({ content: 'form button[type="submit"] { width: 96px; }' });
+    expect((await cutOff(page)).join('\n')).toContain('is cut off');
+
+    // A button that is narrower than what is in it: the label reaches into the padding.
+    await page.addStyleTag({
+      content:
+        'form button[type="submit"] { width: auto; } header button:not([aria-label]) { width: 40px; }',
+    });
+    expect((await cutOff(page)).join('\n')).toContain('does not fit inside its own padding');
+  });
+});
+
+/** A share sheet for PDF files, as Chrome on Android has one. */
+async function withShareSheet(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => true });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async () => undefined });
+  });
+}
+
+declare global {
+  interface Window {
+    e2eProgressLine?: { top: number; left: number; width: number; areaWidth: number };
+  }
+}
+
+test.describe('the progress of a typed password, on the phone', () => {
+  test.use({ ...PHONE, viewport: { width: 412, height: 915 }, locale: 'zh-CN' });
+
+  test('runs along the top edge of the action area, from side to side', async ({ app, page }) => {
+    await app.open();
+    await app.addFiles([LARGE_PDF.path]);
+    await app.expectState(LARGE_PDF.name, 'needs-password');
+
+    // Measured the moment the line appears: the run is over in less than a second, and the
+    // action area itself may still be moving into place.
+    await page.evaluate(() => {
+      const observer = new MutationObserver(() => {
+        const line = [...document.querySelectorAll('form [role="progressbar"]')].find((bar) =>
+          (bar as HTMLElement).checkVisibility(),
+        );
+        const area = line?.closest('form');
+        if (!line || !area) return;
+        const lineBox = line.getBoundingClientRect();
+        const areaBox = area.getBoundingClientRect();
+        window.e2eProgressLine = {
+          top: lineBox.top - areaBox.top,
+          left: lineBox.left - areaBox.left,
+          width: lineBox.width,
+          areaWidth: areaBox.width,
+        };
+        observer.disconnect();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+    await app.unlockWith(LARGE_PDF.password);
+    await app.expectState(LARGE_PDF.name, 'done');
+
+    const line = await page.evaluate(() => window.e2eProgressLine);
+    expect(line, 'a progress line was shown').toBeDefined();
+    expect(Math.abs(line!.top), 'on the top edge').toBeLessThanOrEqual(1);
+    expect(line!.left, 'from the left edge').toBe(0);
+    expect(line!.width, 'to the right edge').toBe(line!.areaWidth);
   });
 });
 
@@ -346,6 +547,45 @@ for (const size of SIZES) {
           await check(app, 'file menu', {});
           await expect(menu).toBeInViewport({ ratio: 1 });
         });
+
+        // What a current Pixel offers after a batch: share, save to a folder, save as a ZIP and
+        // start over, all in one row above the primary button. Once per size and language.
+        if (theme === 'light' && !size.keyboardFrom) {
+          test.describe('with a share sheet and a folder picker', () => {
+            test.use({ filePickers: 'opfs' });
+
+            test('the results of several files keep their layout', async ({ app, page }) => {
+              await withShareSheet(page);
+              await app.open();
+              await app.addFixtures(
+                'aes-256-r6.pdf',
+                'owner-only-r6.pdf',
+                'damaged-unrecoverable.pdf',
+              );
+              await app.analysed(3);
+              await app.unlockWith('user');
+              await app.expectState('aes-256-r6.pdf', 'done');
+              await app.expectState('owner-only-r6.pdf', 'done');
+              await expect(app.dockButton('action.shareAll')).toBeVisible();
+              await expect(app.dockButton('action.saveAllFolder')).toBeVisible();
+              await expect(app.dockButton('action.startOver')).toBeVisible();
+              await expect(app.dock).toContainText(app.t('status.failed', { count: 1 }));
+              await check(app, 'results of several files, one of them failed', {
+                primary: app.dockButton('action.saveAll'),
+                lastCard: true,
+              });
+
+              // One result: its own actions move into the action area.
+              await app.menuCommand('owner-only-r6.pdf', 'entry.menu.remove');
+              await app.menuCommand('damaged-unrecoverable.pdf', 'entry.menu.remove');
+              await expect(app.dockButton('entry.share')).toBeVisible();
+              await expect(app.dockButton('entry.open')).toBeVisible();
+              await check(app, 'the result of one file', {
+                primary: app.dockButton('entry.save'),
+              });
+            });
+          });
+        }
       });
     }
   }

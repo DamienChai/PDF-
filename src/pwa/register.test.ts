@@ -46,7 +46,7 @@ function setup(flag: boolean | null = false) {
   const flags = new Map<string, boolean>();
   const visibleCallbacks: (() => void)[] = [];
   const timers: (() => void)[] = [];
-  const state = { now: 0, reloads: 0, storage: flag };
+  const state = { now: 0, reloads: 0, storage: flag, busy: false };
   const env: ServiceWorkerEnvironment = {
     container: container as unknown as ServiceWorkerEnvironment['container'],
     scriptUrl: 'https://user.github.io/PDF-/sw.js',
@@ -69,6 +69,7 @@ function setup(flag: boolean | null = false) {
       refreshes.push(apply);
     }),
     onOfflineReady: vi.fn(),
+    mayReload: () => !state.busy,
   } satisfies ServiceWorkerHooks;
 
   /** The browser found a (new) worker script and starts installing it. */
@@ -328,6 +329,83 @@ describe('updates', () => {
     await applied;
     expect(t.state.reloads).toBe(1);
     expect(t.hooks.onOfflineReady).toHaveBeenCalledOnce();
+  });
+
+  it('leaves the waiting version alone while a reload would cost work', async () => {
+    const t = setup(true);
+    t.existingInstallation();
+    await t.start();
+    const update = t.beginInstall();
+    t.finishInstall(update);
+    t.state.busy = true;
+    await t.refreshes[0]!();
+    expect(update.messages).toEqual([]);
+    expect(t.state.reloads).toBe(0);
+    expect(t.timers).toHaveLength(0);
+
+    // The same offer works once the work is safe.
+    t.state.busy = false;
+    const applied = t.refreshes[0]!();
+    await settle();
+    expect(update.messages).toEqual([{ type: SKIP_WAITING }]);
+    t.activate(update, true);
+    await applied;
+    expect(t.state.reloads).toBe(1);
+  });
+
+  it('offers the reload again when work began while the new version was taking over', async () => {
+    const t = setup(true);
+    t.existingInstallation();
+    await t.start();
+    const update = t.beginInstall();
+    t.finishInstall(update);
+    const applied = t.refreshes[0]!();
+    await settle();
+    t.state.busy = true;
+    t.activate(update, true);
+    await applied;
+    expect(t.state.reloads).toBe(0);
+    expect(t.hooks.onNeedRefresh).toHaveBeenCalledTimes(2);
+
+    await t.refreshes[1]!();
+    expect(t.state.reloads).toBe(0);
+    expect(t.hooks.onNeedRefresh).toHaveBeenCalledTimes(3);
+    t.state.busy = false;
+    await t.refreshes[2]!();
+    expect(t.state.reloads).toBe(1);
+  });
+
+  it('does not reload over unsaved work when another tab activated the update', async () => {
+    const t = setup(true);
+    t.existingInstallation();
+    await t.start();
+    const update = t.beginInstall();
+    t.finishInstall(update);
+    t.state.busy = true;
+    t.activate(update, true);
+    expect(t.hooks.onNeedRefresh).toHaveBeenCalledTimes(2);
+    await t.refreshes[0]!();
+    expect(t.state.reloads).toBe(0);
+    t.state.busy = false;
+    await t.refreshes[1]!();
+    expect(t.state.reloads).toBe(1);
+  });
+
+  it('treats a failing mayReload() as a no', async () => {
+    const t = setup(true);
+    t.existingInstallation();
+    const refreshes: (() => Promise<void>)[] = [];
+    await manageServiceWorker(t.env, {
+      onNeedRefresh: (apply) => void refreshes.push(apply),
+      mayReload: () => {
+        throw new Error('state is gone');
+      },
+    });
+    const update = t.beginInstall();
+    t.finishInstall(update);
+    await refreshes[0]!();
+    expect(update.messages).toEqual([]);
+    expect(t.state.reloads).toBe(0);
   });
 
   it('ignores an update that fails to install', async () => {

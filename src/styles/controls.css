@@ -470,6 +470,11 @@
   text-wrap: pretty;
 }
 
+/* The control of a row keeps its size; the text beside it gives way. */
+.row > .btn {
+  flex: none;
+}
+
 /* The whole row toggles its switch. */
 label.row,
 .row--toggle {

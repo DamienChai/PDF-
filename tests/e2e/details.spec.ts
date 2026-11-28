@@ -86,10 +86,10 @@ test.describe('file details', () => {
 
     const details = await app.openDetails(source.file);
     await expect(details).toContainText(app.t('details.summary.none'));
-    await expect(fact(details, app.t('details.algorithm'))).toHaveText(
-      app.t('details.protection.none'),
-    );
-    await expect(fact(details, app.t('details.keyLength'))).toHaveText('–');
+    await expect(details).toContainText(app.t('details.protection.none'));
+    // No encryption, so no facts about one.
+    await expect(fact(details, app.t('details.algorithm'))).toHaveCount(0);
+    await expect(fact(details, app.t('details.keyLength'))).toHaveCount(0);
     await expect(fact(details, app.t('details.pdfVersion'))).toHaveText(source.pdfVersion);
     await expect(fact(details, app.t('details.pages'))).toHaveText(String(source.pageCount));
     await expect(fact(details, app.t('details.fastWebView'))).toHaveText(app.t('details.yes'));

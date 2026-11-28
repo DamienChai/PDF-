@@ -1,8 +1,8 @@
 import { signal } from '@preact/signals';
 import { describe, expect, it, vi } from 'vitest';
 import type { ServiceWorkerHooks } from '../pwa/register';
-import { createDemoFile } from '../../tests/support/fake-engine';
-import { createHarness } from '../../tests/support/jobs-harness';
+import { DEMO_PASSWORD, createDemoFile } from '../../tests/support/fake-engine';
+import { createHarness, tick, type HarnessOptions } from '../../tests/support/jobs-harness';
 import {
   closeOverlay,
   createAppStarter,
@@ -21,8 +21,8 @@ import type { EngineStatus } from './engine';
 import { DEFAULT_MODE, modeFromUrl } from './mode';
 import { createOverlayController } from './overlay';
 
-function setup(overrides: Partial<AppDependencies> = {}) {
-  const harness = createHarness();
+function setup(overrides: Partial<AppDependencies> = {}, options: HarnessOptions = {}) {
+  const harness = createHarness(options);
   const engineStatus = signal<EngineStatus>('idle');
   const engine = { status: engineStatus, preload: vi.fn(), retry: vi.fn(async () => null) };
   const overlayController = createOverlayController(null);
@@ -32,6 +32,7 @@ function setup(overrides: Partial<AppDependencies> = {}) {
   let hooks: ServiceWorkerHooks = {};
   let incoming: Parameters<AppDependencies['onIncomingFiles']>[0] = () => undefined;
   let launch: Parameters<AppDependencies['onLaunchUrl']>[0] = () => undefined;
+  let shareProblem: Parameters<AppDependencies['onShareProblem']>[0] = () => undefined;
   const deps: AppDependencies = {
     settings: { applyEffects },
     jobs: harness.jobs,
@@ -49,6 +50,9 @@ function setup(overrides: Partial<AppDependencies> = {}) {
     onLaunchUrl: (handler) => {
       launch = handler;
     },
+    onShareProblem: (handler) => {
+      shareProblem = handler;
+    },
     ...overrides,
   };
   const startApp = createAppStarter(deps);
@@ -56,6 +60,8 @@ function setup(overrides: Partial<AppDependencies> = {}) {
     ...harness,
     startApp,
     engine,
+    /** The fake PDF engine behind the jobs (`engine` is the engine status of the app). */
+    pdfEngine: harness.engine,
     engineStatus,
     overlayController,
     applyEffects,
@@ -66,6 +72,7 @@ function setup(overrides: Partial<AppDependencies> = {}) {
     inspections: () => harness.engine.calls.inspect.length,
     incoming: (files: File[]) => incoming(files, 'share-target'),
     launch: (url: string) => launch(new URL(url)),
+    shareProblem: (received: number, lost: number | null) => shareProblem({ received, lost }),
   };
 }
 
@@ -154,6 +161,106 @@ describe('service worker toasts', () => {
     expect(app.toasts.toasts.value).toEqual([]);
   });
 
+  it('reloads only where nothing would be lost', async () => {
+    const app = setup();
+    app.startApp();
+    expect(app.hooks().mayReload!()).toBe(true);
+    await app.add('needs-password.pdf');
+    expect(app.hooks().mayReload!()).toBe(true);
+    await app.jobs.unlockAll(DEMO_PASSWORD);
+    expect(app.hooks().mayReload!()).toBe(false);
+    await app.jobs.saveAll();
+    expect(app.hooks().mayReload!()).toBe(true);
+  });
+
+  it('holds the offer back while a result is unsaved, and makes it once it is saved', async () => {
+    const app = setup();
+    app.startApp();
+    await app.add('needs-password.pdf', 'plain.pdf');
+    await app.jobs.unlockAll(DEMO_PASSWORD);
+    expect(app.view('needs-password.pdf').state).toBe('done');
+    const apply = vi.fn(async () => undefined);
+    app.hooks().onNeedRefresh!(apply);
+    expect(app.toastKeys()).not.toContain('toast.update');
+
+    await app.jobs.saveAll();
+    expect(app.toastKeys()).toContain('toast.update');
+    const toast = app.toasts.toasts.value.find((t) => t.message.key === 'toast.update')!;
+    app.toasts.runAction(toast.id);
+    expect(apply).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes the held-back offer when the list is cleared or the unsaved file removed', async () => {
+    for (const leave of ['clear', 'remove'] as const) {
+      const app = setup();
+      app.startApp();
+      const [entry] = await app.add('needs-password.pdf');
+      await app.jobs.unlockAll(DEMO_PASSWORD);
+      app.hooks().onNeedRefresh!(async () => undefined);
+      expect(app.toastKeys()).toEqual([]);
+      if (leave === 'clear') app.jobs.clear();
+      else app.jobs.remove(entry!.id);
+      expect(app.toastKeys(), leave).toEqual(['toast.update']);
+    }
+  });
+
+  it('withdraws the offer while files are being processed and makes it again afterwards', async () => {
+    const app = setup({}, { engine: { hold: 0.5 }, settings: { autoSave: true } });
+    app.startApp();
+    await app.add('needs-password.pdf');
+    const apply = vi.fn(async () => undefined);
+    app.hooks().onNeedRefresh!(apply);
+    expect(app.toastKeys()).toEqual(['toast.update']);
+    const offered = app.toasts.toasts.value[0]!;
+
+    const run = app.jobs.unlockAll(DEMO_PASSWORD);
+    await tick();
+    expect(app.view('needs-password.pdf').state).toBe('processing');
+    expect(app.toastKeys()).toEqual([]);
+    expect(app.hooks().mayReload!()).toBe(false);
+    // A press that was already on its way when the work began changes nothing.
+    offered.action!.run();
+    expect(apply).not.toHaveBeenCalled();
+
+    app.pdfEngine.release();
+    await run;
+    // Auto-save has delivered the result: nothing is at stake any more.
+    expect(app.toastKeys()).toContain('toast.update');
+    app.toasts.runAction(app.toasts.toasts.value.find((t) => t.message.key === 'toast.update')!.id);
+    expect(apply).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts the work of the other mode too', async () => {
+    const app = setup();
+    app.startApp();
+    await app.add('needs-password.pdf');
+    await app.jobs.unlockAll(DEMO_PASSWORD);
+    app.mode.value = 'lock';
+    expect(app.jobs.summary.value.results.unsaved).toBe(0);
+    app.hooks().onNeedRefresh!(async () => undefined);
+    expect(app.toastKeys()).toEqual([]);
+    expect(app.hooks().mayReload!()).toBe(false);
+    app.mode.value = 'unlock';
+    await app.jobs.saveAll();
+    app.mode.value = 'lock';
+    expect(app.toastKeys()).toContain('toast.update');
+  });
+
+  it('takes a dismissed offer as declined until the next announcement', async () => {
+    const app = setup();
+    app.startApp();
+    const apply = vi.fn(async () => undefined);
+    app.hooks().onNeedRefresh!(apply);
+    app.toasts.dismiss(app.toasts.toasts.value[0]!.id);
+    await app.add('needs-password.pdf');
+    await app.jobs.unlockAll(DEMO_PASSWORD);
+    await app.jobs.saveAll();
+    expect(app.toastKeys()).not.toContain('toast.update');
+
+    app.hooks().onNeedRefresh!(apply);
+    expect(app.toastKeys()).toContain('toast.update');
+  });
+
   it('announces offline readiness once', () => {
     const app = setup();
     app.startApp();
@@ -176,6 +283,25 @@ describe('incoming files and launches', () => {
     expect(app.jobs.entries.value).toMatchObject([
       { name: 'needs-password.pdf', source: 'share-target' },
     ]);
+  });
+
+  it('says so when shared files did not arrive, over whatever sheet is open', () => {
+    const app = setup();
+    app.startApp();
+    app.overlayController.openSettings();
+    app.shareProblem(0, null);
+    expect(app.overlayController.overlay.value).toBeNull();
+    expect(app.toasts.toasts.value).toMatchObject([
+      { message: { key: 'toast.shareLost' }, tone: 'error' },
+    ]);
+    // Some arrived: the others are counted. One toast, however often it happens.
+    app.shareProblem(2, 1);
+    expect(app.toasts.toasts.value).toMatchObject([
+      { message: { key: 'toast.shareLostCount', params: { count: 1 } }, tone: 'error' },
+    ]);
+    // None arrived: the number says nothing the plain message does not.
+    app.shareProblem(0, 3);
+    expect(app.toasts.toasts.value).toMatchObject([{ message: { key: 'toast.shareLost' } }]);
   });
 
   it('follows app shortcuts into a mode and ignores other addresses', () => {

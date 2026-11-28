@@ -401,6 +401,29 @@ export function checkNewPasswords(input: NewPasswordInput): NewPasswordProblem |
   return typeof resolved === 'string' ? resolved : null;
 }
 
+/**
+ * True if the two passwords are one and the same to a document written with `algorithm`, i.e. if
+ * the engine would encrypt with the same bytes for both. Text that differs as typed can be one
+ * password: SASLprep (AES-256) folds full-width letters and digits into ordinary ones and
+ * composes accents, PDFDocEncoding (AES-128) is applied to the composed form. Passwords that
+ * cannot be written at all are only equal if they are equal as typed.
+ */
+export function sameNewPassword(
+  a: string,
+  b: string,
+  algorithm: EncryptOptions['algorithm'],
+): boolean {
+  if (a === b) {
+    return true;
+  }
+  const first = encodeNewPassword(a, algorithm);
+  const second = encodeNewPassword(b, algorithm);
+  if (typeof first === 'string' || typeof second === 'string') {
+    return false;
+  }
+  return first.length === second.length && first.every((byte, i) => byte === second[i]);
+}
+
 /** The byte strings to encrypt with. Throws PdfEngineError for unusable passwords. */
 export function encodeNewPasswords(input: NewPasswordInput): NewPasswords {
   const resolved = resolveNewPasswords(input);

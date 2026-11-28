@@ -96,6 +96,20 @@
   white-space: nowrap;
 }
 
+/* The outcome is the headline: where the two do not fit one line, the remark beside it gives
+   way, not the count of finished files. */
+.dock__status--success .dock__headline {
+  flex: none;
+  max-width: 100%;
+}
+
+.dock__status--success .dock__aside {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .dock__aside-ok {
   display: inline-flex;
   align-items: center;
@@ -138,21 +152,29 @@
   border-radius: 4px;
 }
 
-/* While the typed password is tried, progress runs along the top edge of the bar. */
-.dock__inline-progress {
+/* While the typed password is tried the bar keeps its field, so progress runs along the bar's
+   top edge, from side to side. (A child of the bar itself: the content below it is moved when
+   it changes and would take the line along.) The inspector has room for a bar of its own under
+   the field instead; see the desktop rules. */
+.dock__edge-progress {
   position: absolute;
   top: -1px;
   right: 0;
   left: 0;
 }
 
-.dock__inline-progress .progress {
+.dock__edge-progress .progress {
   height: 3px;
   border-radius: 0;
 }
 
-/* Secondary result actions: share and open shrink evenly; "process new files" is a quiet text
-   action that keeps its width. */
+.dock__inline-progress {
+  display: none;
+}
+
+/* Secondary result actions. Each button is as wide as its label needs and they share what is
+   left, so "save to folder" is not cut short to match "share"; "process new files" is a quiet
+   text action whose label ends at the edge of the column. */
 .dock__slot--actions {
   display: flex;
   align-items: center;
@@ -160,21 +182,23 @@
 }
 
 .dock__slot--actions .btn {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   height: var(--button-h);
   padding: 0 var(--space-3);
 }
 
-/* Narrow phones: the labels need the room more than the icons do. */
-@media (max-width: 400px) {
+/* Phones: the labels need the room more than the icons do. */
+@media (max-width: 479.98px) {
   .dock__slot--actions .btn > .icon {
     display: none;
   }
 }
 
 .dock__slot--actions .dock__reset {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  margin-right: calc(var(--space-2) * -1);
   margin-left: auto;
+  padding: 0 var(--space-2);
   color: var(--color-accent-text);
 }
 
@@ -254,11 +278,17 @@
 
 .advanced-toggle {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* The summary of what is set sits under the title, like the description of a switch: beside
+     it, "AES-256, permissions password, restricted" has no room on a phone or in the inspector. */
+  grid-template-areas:
+    'title icon'
+    'summary icon';
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-3);
+  gap: 2px var(--space-3);
   width: 100%;
   min-height: var(--row-h);
+  padding-block: var(--space-2);
   border-top: 1px solid var(--color-border);
   border-radius: 0;
   text-align: left;
@@ -270,21 +300,21 @@
 }
 
 .advanced-toggle__title {
+  grid-area: title;
   font: var(--type-label);
   font-weight: 600;
 }
 
 .advanced-toggle__summary {
-  justify-self: end;
-  max-width: 100%;
-  overflow: hidden;
+  grid-area: summary;
+  min-width: 0;
   color: var(--color-text-2);
   font: var(--type-caption);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-wrap: pretty;
 }
 
 .advanced-toggle .icon {
+  grid-area: icon;
   color: var(--color-text-2);
   transition: transform var(--dur-base) var(--ease-out);
 }
@@ -338,6 +368,12 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   padding: var(--space-3) 0;
+}
+
+/* Three options with long English labels inside a card inside a card: on a 360px phone they fit
+   only if the options give up some of their side padding. */
+.perms__print .segmented__option {
+  padding-inline: var(--space-1);
 }
 
 .lockresult {
@@ -427,6 +463,8 @@
   .dock__bar,
   .dock--long .dock__bar {
     padding: var(--space-4);
+    /* The progress line along the top edge follows the rounded corners. */
+    overflow: hidden;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-pop);
@@ -521,6 +559,15 @@
     display: block;
   }
 
+  /* Progress of a typed password: a bar of its own under the field. */
+  .dock__edge-progress {
+    display: none;
+  }
+
+  .dock__inline-progress {
+    display: block;
+  }
+
   .dock__slot--actions {
     flex-wrap: wrap;
   }
@@ -612,5 +659,10 @@
     margin-left: calc(var(--space-4) * -1);
     padding-left: var(--space-4);
     border-left: 1px solid var(--color-border);
+  }
+
+  /* The first line of the right column sits on the line of the first label of the left one. */
+  .lockform--advanced .advanced__owner > .row {
+    padding-top: 0;
   }
 }

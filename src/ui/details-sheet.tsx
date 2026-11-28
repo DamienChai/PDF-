@@ -74,15 +74,12 @@ function Content({ details }: { details: DetailsView }) {
         </div>
       )}
 
-      <dl class="tiles">
+      <dl class="tiles tiles--facts">
+        {/* A file that is not encrypted has neither: the summary above says so. */}
+        {details.algorithm && <Tile label={t('details.algorithm')}>{t(details.algorithm)}</Tile>}
+        {details.keyLength && <Tile label={t('details.keyLength')}>{t(details.keyLength)}</Tile>}
         {details.available && (
           <>
-            <Tile label={t('details.algorithm')}>
-              {details.algorithm ? t(details.algorithm) : t('details.protection.none')}
-            </Tile>
-            <Tile label={t('details.keyLength')}>
-              {details.keyLength ? t(details.keyLength) : '–'}
-            </Tile>
             <Tile label={t('details.pdfVersion')}>{details.pdfVersion ?? '–'}</Tile>
             <Tile label={t('details.pages')}>
               {details.pageCount !== null ? formatNumber(details.pageCount) : quiet}
@@ -114,6 +111,7 @@ function Content({ details }: { details: DetailsView }) {
           <h3 class="section-title" id="details-permissions">
             {t('details.permissions')}
           </h3>
+          {details.permissionsNote && <p class="hint">{t(details.permissionsNote)}</p>}
           <ul class="rows">
             {details.permissions.map((row) => (
               <li class="row" key={row.id}>
@@ -125,7 +123,6 @@ function Content({ details }: { details: DetailsView }) {
               </li>
             ))}
           </ul>
-          {details.permissionsNote && <p class="hint">{t(details.permissionsNote)}</p>}
         </section>
       )}
 

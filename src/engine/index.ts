@@ -6,7 +6,7 @@ import type { PdfEngine } from './types';
 
 export * from './types';
 export type { CreateEngineOptions } from './client';
-export { checkNewPasswords, type NewPasswordProblem } from './passwords';
+export { checkNewPasswords, sameNewPassword, type NewPasswordProblem } from './passwords';
 
 /**
  * Creates an engine. Nothing is loaded until the first call (or `ready()`); the WebAssembly

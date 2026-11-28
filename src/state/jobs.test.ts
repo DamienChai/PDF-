@@ -1,4 +1,5 @@
 /** The file list: taking files in, and the Unlock state machine. */
+import { effect } from '@preact/signals';
 import { describe, expect, it } from 'vitest';
 import { ALL_PERMISSIONS } from '../engine/types';
 import {
@@ -449,8 +450,78 @@ describe('unlock: card states', () => {
       results: { count: 2 },
       canSaveAll: true,
     });
-    // One left: back to the shared field.
-    expect(h.view('other-password.pdf').password).toBeNull();
+    // One left. It keeps the field it had (something may have been typed into it), next to
+    // the shared one.
+    expect(h.view('other-password.pdf').password).toMatchObject({ kind: 'retry' });
+    expect(h.jobs.summary.value.passwordField).toBe(true);
+  });
+
+  it('g. a card keeps its retry field while another card is retried, and afterwards', async () => {
+    const h = createHarness({ engine: { scenarios: OTHER } });
+    await h.add('needs-password.pdf', 'other-password.pdf');
+    h.jobs.setUnlockPassword('nope');
+    await h.jobs.unlockAll();
+    const first = h.entry('needs-password.pdf');
+    const second = h.entry('other-password.pdf');
+    expect(second.view.value.password).toMatchObject({ kind: 'retry' });
+
+    // While the first card is being tried, the second one must not lose its field.
+    h.engine.setHold(0.5);
+    const run = h.jobs.retryUnlock(first.id, DEMO_PASSWORD);
+    await tick();
+    expect(first.view.value.state).toBe('processing');
+    expect(second.view.value).toMatchObject({
+      state: 'wrong-password',
+      password: { kind: 'retry', error: { key: 'entry.password.wrong' } },
+    });
+
+    // Nor when that try has worked and it is the only locked file left.
+    h.engine.release();
+    expect(await run).toMatchObject({ done: 1 });
+    expect(h.states()).toEqual(['done', 'wrong-password']);
+    expect(second.view.value.password).toMatchObject({ kind: 'retry' });
+
+    // Its own failed try does not take the field away either.
+    expect(await h.jobs.retryUnlock(second.id, 'still-wrong')).toMatchObject({ rejected: 1 });
+    expect(second.view.value.password).toMatchObject({ kind: 'retry' });
+    expect(await h.jobs.retryUnlock(second.id, '9999')).toMatchObject({ done: 1 });
+    expect(h.states()).toEqual(['done', 'done']);
+  });
+
+  it('g. a card keeps its retry field when the retry of another card fails', async () => {
+    const h = createHarness({ engine: { scenarios: OTHER } });
+    await h.add('needs-password.pdf', 'other-password.pdf');
+    h.jobs.setUnlockPassword('nope');
+    await h.jobs.unlockAll();
+    const second = h.entry('other-password.pdf');
+
+    // Every state the second card goes through while the first one is tried and rejected.
+    const hadField: boolean[] = [];
+    const stop = effect(() => void hadField.push(second.view.value.password?.kind === 'retry'));
+    expect(await h.jobs.retryUnlock(h.entry('needs-password.pdf').id, 'wrong')).toMatchObject({
+      rejected: 1,
+    });
+    stop();
+    expect(hadField).not.toContain(false);
+    expect(h.states()).toEqual(['wrong-password', 'wrong-password']);
+    expect(h.view('needs-password.pdf').password).toMatchObject({ kind: 'retry' });
+  });
+
+  it('g. the one file a shared password did not open is retried with the shared field', async () => {
+    const h = createHarness({ engine: { scenarios: OTHER } });
+    await h.add('needs-password.pdf', 'other-password.pdf');
+    h.jobs.setUnlockPassword(DEMO_PASSWORD);
+    expect(await h.jobs.unlockAll()).toMatchObject({ done: 1, rejected: 1 });
+    // It never had a field of its own, and a single locked file does not get one.
+    expect(h.view('other-password.pdf')).toMatchObject({ state: 'wrong-password', password: null });
+    expect(h.jobs.summary.value.passwordField).toBe(true);
+
+    // A second locked file arrives: now each has its own, and keeps it.
+    await h.add('aes128.pdf');
+    expect(h.view('other-password.pdf').password).toMatchObject({ kind: 'retry' });
+    await h.jobs.retryUnlock(h.entry('aes128.pdf').id, DEMO_PASSWORD);
+    expect(h.states()).toEqual(['done', 'wrong-password', 'done']);
+    expect(h.view('other-password.pdf').password).toMatchObject({ kind: 'retry' });
   });
 
   it('g. retries one file with its own password', async () => {
@@ -926,6 +997,52 @@ describe('unlock: the password is not kept', () => {
     await h.jobs.retryUnlock(h.entry('other-password.pdf').id, '9999');
     expect(h.jobs.unlockPassword.value).toBe('');
     expect(h.jobs.summary.value.passwordField).toBe(false);
+  });
+
+  it('is dropped when the file it was typed for turns out to need none', async () => {
+    const h = createHarness({ engine: { hold: 'inspect' } });
+    await h.jobs.addFiles([createDemoFile('plain.pdf')], 'picker');
+    // The field is offered while the file is still being read.
+    h.jobs.setUnlockPassword('typed-early');
+    h.jobs.setUnlockRevealed(true);
+    expect(h.jobs.unlockPassword.value).toBe('typed-early');
+    h.engine.release();
+    await h.jobs.settled();
+    expect(h.states()).toEqual(['not-encrypted']);
+    expect(h.jobs.unlockPassword.value).toBe('');
+    expect(h.jobs.unlockRevealed.value).toBe(false);
+  });
+
+  it('is dropped when the file it was typed for cannot be read', async () => {
+    const h = createHarness({ engine: { hold: 'inspect' } });
+    await h.jobs.addFiles([createDemoFile('damaged.pdf')], 'picker');
+    h.jobs.setUnlockPassword('typed-early');
+    h.engine.release();
+    await h.jobs.settled();
+    expect(h.states()).toEqual(['error']);
+    expect(h.jobs.unlockPassword.value).toBe('');
+  });
+
+  it('is kept when the file needs it, and while any file is still being read', async () => {
+    const h = createHarness({ engine: { hold: 'inspect' } });
+    await h.jobs.addFiles([createDemoFile('needs-password.pdf')], 'picker');
+    h.jobs.setUnlockPassword(DEMO_PASSWORD);
+    h.engine.release();
+    await h.jobs.settled();
+    expect(h.states()).toEqual(['needs-password']);
+    expect(h.jobs.unlockPassword.value).toBe(DEMO_PASSWORD);
+    await h.jobs.unlockAll();
+    expect(h.jobs.unlockPassword.value).toBe('');
+
+    // A plain file is known, another one is still being read: it may need what is typed now.
+    h.engine.setHold('inspect');
+    await h.jobs.addFiles([createDemoFile('aes128.pdf')], 'picker');
+    h.jobs.setUnlockPassword('typed-early');
+    h.jobs.remove(h.entry('needs-password.pdf').id);
+    expect(h.jobs.unlockPassword.value).toBe('typed-early');
+    h.engine.release();
+    await h.jobs.settled();
+    expect(h.jobs.unlockPassword.value).toBe('typed-early');
   });
 
   it('never appears in what the controller exposes', async () => {

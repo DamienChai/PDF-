@@ -4,7 +4,7 @@
  */
 import { useId } from 'preact/hooks';
 import { algorithmChipLabel, lockAlgorithmDescription, t, type Message } from '../i18n';
-import { lockForm, type LockAlgorithm, type LockField, type LockPermissions } from '../state';
+import { jobs, lockForm, type LockAlgorithm, type LockField, type LockPermissions } from '../state';
 import type { PrintPermission } from '../engine/types';
 import { afterRender, focusQuietly } from './focus';
 import { Icon } from './icons';
@@ -112,6 +112,17 @@ function AdvancedOptions() {
         </div>
       </fieldset>
 
+      {/* Before the permissions password: that part grows when switched on, and on a wide
+          screen it is the second column, which the keyboard reaches after the first. */}
+      <div class="advanced__metadata">
+        <SwitchRow
+          title={t('lock.metadata.switch')}
+          description={t('lock.metadata.description')}
+          checked={lockForm.encryptMetadata.value}
+          onChange={lockForm.setEncryptMetadata}
+        />
+      </div>
+
       <div class="group advanced__owner">
         <SwitchRow
           title={t('lock.owner.switch')}
@@ -176,15 +187,6 @@ function AdvancedOptions() {
           </div>
         )}
       </div>
-
-      <div class="advanced__metadata">
-        <SwitchRow
-          title={t('lock.metadata.switch')}
-          description={t('lock.metadata.description')}
-          checked={lockForm.encryptMetadata.value}
-          onChange={lockForm.setEncryptMetadata}
-        />
-      </div>
     </>
   );
 }
@@ -222,7 +224,13 @@ export function LockForm({ disabled }: { disabled: boolean }) {
             onReveal={lockForm.setRevealed}
             placeholder={t('lock.password.placeholder')}
             autocomplete="new-password"
-            enterkeyhint={lockForm.confirmationNeeded.value ? 'next' : 'go'}
+            enterkeyhint={lockForm.passwordEnter.value}
+            onEnter={() => {
+              // "Next": on to the confirmation. Anything else is left to the form, which submits.
+              if (lockForm.passwordEnter.peek() !== 'next') return false;
+              focusQuietly(document.getElementById(FIELD_IDS.confirmation));
+              return true;
+            }}
             onBlur={() => lockForm.touch('password')}
             invalid={errors.password !== null}
             describedBy={described || undefined}
@@ -308,23 +316,26 @@ export function LockForm({ disabled }: { disabled: boolean }) {
 
 /**
  * After locking: what was applied, and the password once more so that it can still be copied.
+ * Both are what the results were made with (`jobs.lockApplied`), whatever the form holds by now.
  * The form itself comes back when a file is added or processed again.
  */
 export function LockResult() {
-  const password = lockForm.password.value;
+  const applied = jobs.lockApplied.value;
   const revealed = lockForm.revealed.value;
+  if (!applied) return null;
+  const { password } = applied;
   return (
     <div class="lockresult">
       <div class="lockresult__row">
         <span class="label">{t('lock.result.title')}</span>
-        <span class="lockresult__value">{t(lockForm.advancedSummary.value)}</span>
+        <span class="lockresult__value">{t(applied.summary)}</span>
       </div>
       {password === '' ? (
         <p class="hint">{t('lock.result.noPassword')}</p>
       ) : (
         <div class="field">
           <label class="label" for="lock-result-password">
-            {t(lockForm.passwordLabel.value)}
+            {t(applied.passwordLabel)}
           </label>
           <div class="input">
             <input
@@ -348,7 +359,7 @@ export function LockResult() {
               type="button"
               class="input__action"
               aria-label={t('lock.copy')}
-              onClick={() => void lockForm.copyPassword()}
+              onClick={() => void jobs.copyLockPassword()}
             >
               <Icon name="copy" />
             </button>

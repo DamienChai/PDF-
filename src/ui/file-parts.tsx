@@ -3,7 +3,7 @@
  * the line of facts, the inline password fields, result actions and the error block.
  */
 import { useId, useRef, useState } from 'preact/hooks';
-import { formatPages, formatSize, t, type Message } from '../i18n';
+import { formatPages, formatSize, phrasesOf, t, type Message, type Text } from '../i18n';
 import { jobs, type Entry, type EntryView, type PasswordFieldView } from '../state';
 import { FileName } from './file-name';
 import { afterRender, focusQuietly } from './focus';
@@ -17,12 +17,37 @@ export function metaText(view: EntryView): string {
   return parts.join(' · ');
 }
 
+/**
+ * A note about a file. A list of restrictions is set phrase by phrase: a line may end after
+ * "不可修改、" or "no editing," but never in the middle of one.
+ */
+export function NoteText({ text }: { text: Text }) {
+  if (!('list' in text)) return <>{t(text)}</>;
+  const { phrases, gap } = phrasesOf(text);
+  return (
+    <>
+      {phrases.flatMap((phrase, index) => {
+        const node = (
+          <span class="phrase" key={index}>
+            {phrase}
+          </span>
+        );
+        return index > 0 && gap ? [gap, node] : [node];
+      })}
+    </>
+  );
+}
+
 /** Size, pages and the quiet note of the state on one line. */
 export function InfoLine({ view }: { view: EntryView }) {
   return (
     <p class="info">
       <span class="info__meta num">{metaText(view)}</span>
-      {view.note && <span class="info__note">{t(view.note)}</span>}
+      {view.note && (
+        <span class="info__note">
+          <NoteText text={view.note} />
+        </span>
+      )}
       {view.warning && <span class="info__note">{t(view.warning)}</span>}
     </p>
   );

@@ -13,10 +13,11 @@ import {
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { SKIP_WAITING, type SkipWaitingMessage } from './protocol';
 import {
-  SHARE_REDIRECT,
+  SHARE_LOST_ALL,
   filesFromForm,
   isShareTargetUrl,
   purgeStaleStash,
+  shareRedirect,
   stashFiles,
 } from './share-stash';
 
@@ -51,14 +52,21 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(request.method === 'POST' ? receiveShare(request) : redirectToApp('./'));
 });
 
+/**
+ * Parks the shared files for the page and opens the app. The app is opened whatever happens,
+ * rather than a browser error page, and the address tells it how many files did not make it, so
+ * that it can say so.
+ */
 async function receiveShare(request: Request): Promise<Response> {
+  let lost: number | typeof SHARE_LOST_ALL = SHARE_LOST_ALL;
   try {
     const files = filesFromForm(await request.formData());
-    await stashFiles(caches, scope, files);
+    // A share without a single file has nothing for the app either.
+    if (files.length > 0) lost = (await stashFiles(caches, scope, files)).failed;
   } catch {
-    // Malformed form or storage full: still open the app rather than show a browser error page.
+    // Malformed form, or no storage at all.
   }
-  return redirectToApp(SHARE_REDIRECT);
+  return redirectToApp(shareRedirect(lost));
 }
 
 /** 303: the browser follows with a GET, so reloading the app never re-submits the share. */

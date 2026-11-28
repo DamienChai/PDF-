@@ -57,15 +57,15 @@ export const zhCN = {
   // --- File card -------------------------------------------------------------------------------
   'entry.note.nothingToUnlock': '无需解锁',
   'entry.note.noRestrictions': '未限制任何操作',
-  'entry.note.willEncrypt': '将被加密',
-  'entry.note.willReplace': '现有保护将被替换',
+  'entry.note.willEncrypt': '待加密',
+  'entry.note.willReplace': '将替换现有保护',
   'entry.note.needsCurrentPassword': '更换保护前，需要先输入当前密码',
   'entry.password.label': '密码',
   'entry.password.placeholder': '输入此文件的密码',
   'entry.password.submit': '解锁',
   'entry.password.wrong': '密码不正确',
   'entry.currentPassword.label': '当前密码',
-  'entry.currentPassword.placeholder': '输入此文件现在的密码',
+  'entry.currentPassword.placeholder': '输入此文件的当前密码',
   'entry.currentPassword.wrong': '当前密码不正确',
   'entry.currentPassword.required': '请输入当前密码',
   'entry.menu': '更多操作',
@@ -120,7 +120,7 @@ export const zhCN = {
   'status.analysing': '正在分析…',
   'status.processing': '正在处理…',
   'status.processingCount': '正在处理，已完成 {done}/{total}',
-  'status.nothingToUnlock': '列表中的文件都没有密码保护，无需解锁。',
+  'status.nothingToUnlock': '没有需要解锁的文件。',
   'status.nothingToLock': '请在文件卡片上输入当前密码。',
   'status.nothingToDo': '没有可以处理的文件。',
   'status.unlocked': '已解锁 {count} 个文件',
@@ -181,6 +181,7 @@ export const zhCN = {
   'strength.4': '很强',
   'strength.hint.too-short': '太短，至少使用 8 个字符',
   'strength.hint.common-password': '这是常见密码，很容易被猜到',
+  'strength.hint.name-or-word': '姓名、拼音或单词很容易被猜到，加上数字也一样',
   'strength.hint.repeated-characters': '避免重复的字符',
   'strength.hint.sequence': '避免连续的字符和键盘顺序，如 1234、qwerty',
   'strength.hint.single-character-class': '混合使用大小写字母、数字和符号',
@@ -280,7 +281,10 @@ export const zhCN = {
   'about.privacy':
     '所有处理都在本机完成。文件和密码不会离开这台设备；应用不联网上传任何内容，也不含统计或跟踪代码。',
   'about.licenses': '开源许可',
+  'about.licenses.app': '本应用是自由软件，以 GNU Affero 通用公共许可证第 3 版（AGPL-3.0）发布。',
   'about.licenses.thirdParty': '本应用使用了以下开源组件：',
+  'about.licenses.ijg': '本软件部分基于 Independent JPEG Group 的工作成果。',
+  'about.licenses.notices': '查看许可全文（英文）',
 
   // --- Toasts ----------------------------------------------------------------------------------
   'toast.dismiss': '关闭',
@@ -302,6 +306,11 @@ export const zhCN = {
   'toast.notPdfCount': '已跳过 {count} 个不是 PDF 的文件',
   'toast.duplicate': '“{name}”已在列表中',
   'toast.duplicateCount': '{count} 个文件已在列表中',
+  'toast.shareLost': '无法接收分享的文件，请在应用内选择文件',
+  'toast.shareLostCount': '有 {count} 个分享的文件未能接收，请在应用内选择',
+  'toast.folderEmpty': '文件夹里没有 PDF 文件',
+  'toast.folderLimit': '文件夹里的内容太多，只添加了一部分 PDF',
+  'toast.folderUnreadable': '无法读取文件夹，请直接拖入其中的文件',
   'toast.engineUnavailable': '无法加载 PDF 引擎',
   'toast.retry': '重试',
 
@@ -350,6 +359,7 @@ export const zhCN = {
   'list.summary.rejected': '{count} 个密码不正确',
   'list.summary.failed': '{count} 个无法处理',
   'list.summary.done': '{count} 个已完成',
+  'list.summary.relock': '{count} 个将重新加密',
   'list.dropMore': '把更多 PDF 拖到这里',
   'list.dropMore.hint': '也可以点击选择，或直接粘贴',
 
@@ -399,7 +409,7 @@ export const zhCN = {
   'aria.pdfFile': 'PDF 文件',
   'aria.status': '状态',
   'aria.notifications': '通知',
-  'aria.jumpTo': '跳到第一个{label}的文件',
+  'aria.jumpTo': '跳到第一个相关文件：{label}',
 
   // --- Formats ---------------------------------------------------------------------------------
   'format.files': '{count} 个文件',

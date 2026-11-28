@@ -429,6 +429,323 @@ describe('lock: running', () => {
   });
 });
 
+describe('lock: one set of settings for the whole list', () => {
+  const OTHER_PASSWORD = 'another-Passw0rd?';
+
+  /** Which of the two passwords open the result of a file. */
+  async function opens(h: ReturnType<typeof lockHarness>, name: string) {
+    // The way out of the controller for a result is saving it.
+    await h.jobs.save(h.entry(name).id);
+    const output = h.save.calls.at(-1)!.files[0]!.blob;
+    return {
+      first: (await h.engine.inspect(output, NEW_PASSWORD)).access !== 'locked',
+      second: (await h.engine.inspect(output, OTHER_PASSWORD)).access !== 'locked',
+    };
+  }
+
+  it('remembers what the results were made with, whatever the form holds later', async () => {
+    const h = lockHarness();
+    await h.add('plain.pdf');
+    expect(h.jobs.lockApplied.value).toBeNull();
+    h.fillLockForm();
+    await h.jobs.lockAll();
+    expect(h.jobs.lockApplied.value).toEqual({
+      summary: { list: [{ key: 'algorithm.chip.aes-256' }] },
+      passwordLabel: { key: 'lock.password.label' },
+      password: NEW_PASSWORD,
+    });
+    // No result carries a password: they refer to the settings by number.
+    expect(JSON.stringify(h.view('plain.pdf'))).not.toContain(NEW_PASSWORD);
+
+    h.lockForm.setPassword('typed-afterwards');
+    h.lockForm.setAlgorithm('aes-128');
+    expect(h.jobs.lockApplied.value).toMatchObject({
+      summary: { list: [{ key: 'algorithm.chip.aes-256' }] },
+      password: NEW_PASSWORD,
+    });
+    // Everything is finished: there is no form to submit other settings with.
+    expect(h.jobs.summary.value).toMatchObject({ phase: 'finished', primary: null, relock: 0 });
+  });
+
+  it('describes a separate permissions password and restrictions as they were applied', async () => {
+    const h = lockHarness();
+    await h.add('plain.pdf');
+    h.lockForm.setSeparateOwner(true);
+    h.lockForm.setOwnerPassword('owner-Passw0rd');
+    h.lockForm.setPermission('print', 'none');
+    h.lockForm.setEncryptMetadata(false);
+    await h.jobs.lockAll();
+    expect(h.jobs.lockApplied.value).toEqual({
+      summary: {
+        list: [
+          { key: 'algorithm.chip.aes-256' },
+          { key: 'lock.summary.restricted' },
+          { key: 'lock.summary.metadataClear' },
+        ],
+      },
+      passwordLabel: { key: 'lock.password.openLabel' },
+      // Opens without a password.
+      password: '',
+    });
+  });
+
+  it('a file added after a run, same settings: only the new file is locked', async () => {
+    const h = lockHarness();
+    await h.add('plain.pdf');
+    h.fillLockForm();
+    await h.jobs.lockAll();
+    await h.add('owner-only.pdf');
+    expect(h.jobs.summary.value).toMatchObject({
+      phase: 'ready',
+      relock: 0,
+      primary: { label: { key: 'action.lock' }, count: 1 },
+    });
+    expect(await h.jobs.lockAll()).toMatchObject({ done: 1 });
+    expect(h.engine.calls.process.map((call) => call.name)).toEqual([
+      'plain.pdf',
+      'owner-only.pdf',
+    ]);
+    expect(h.jobs.lockApplied.value).toMatchObject({ password: NEW_PASSWORD });
+    expect(await opens(h, 'plain.pdf')).toEqual({ first: true, second: false });
+    expect(await opens(h, 'owner-only.pdf')).toEqual({ first: true, second: false });
+  });
+
+  it('a file added after a run, other password: every result is made again', async () => {
+    const h = lockHarness();
+    await h.add('plain.pdf');
+    h.fillLockForm();
+    await h.jobs.lockAll();
+    await h.jobs.save(h.entry('plain.pdf').id);
+    await h.add('owner-only.pdf');
+
+    // The button and the summary follow the form as it is typed in.
+    h.lockForm.setPassword(OTHER_PASSWORD);
+    expect(h.jobs.summary.value).toMatchObject({
+      phase: 'ready',
+      actionable: 2,
+      relock: 1,
+      done: 1,
+      primary: { label: { key: 'action.lockCount', params: { count: 2 } }, count: 2 },
+    });
+    h.lockForm.setPassword(NEW_PASSWORD);
+    expect(h.jobs.summary.value).toMatchObject({ relock: 0, primary: { count: 1 } });
+
+    h.fillLockForm(OTHER_PASSWORD);
+    expect(await h.jobs.lockAll()).toEqual({
+      started: true,
+      done: 2,
+      rejected: 0,
+      failed: 0,
+      cancelled: 0,
+    });
+    // From the input, not from the first result.
+    expect(h.engine.calls.process.map((call) => [call.name, call.password])).toEqual([
+      ['plain.pdf', ''],
+      ['plain.pdf', ''],
+      ['owner-only.pdf', ''],
+    ]);
+    expect(h.states()).toEqual(['done', 'done']);
+    expect(h.jobs.lockApplied.value).toMatchObject({ password: OTHER_PASSWORD });
+    // A new output under the old name; that the first one was saved says nothing about it.
+    expect(h.view('plain.pdf').result).toMatchObject({ name: 'plain_locked.pdf', saved: false });
+    expect(h.view('owner-only.pdf').result).toMatchObject({ name: 'owner-only_locked.pdf' });
+    expect(h.jobs.summary.value).toMatchObject({
+      phase: 'finished',
+      status: { key: 'status.locked', params: { count: 2 } },
+      relock: 0,
+    });
+    expect(await opens(h, 'plain.pdf')).toEqual({ first: false, second: true });
+    expect(await opens(h, 'owner-only.pdf')).toEqual({ first: false, second: true });
+  });
+
+  it('a file that waited for its current password, other password meanwhile', async () => {
+    const h = lockHarness();
+    await h.add('plain.pdf', 'aes128.pdf');
+    h.fillLockForm();
+    expect(await h.jobs.lockAll()).toMatchObject({ done: 1 });
+    expect(h.states()).toEqual(['done', 'encrypted']);
+
+    h.fillLockForm(OTHER_PASSWORD);
+    // Nothing but the finished file could be locked now, and it would be.
+    expect(h.jobs.summary.value).toMatchObject({
+      relock: 1,
+      needPassword: 1,
+      primary: { count: 1, enabled: true },
+      status: null,
+    });
+    h.jobs.setCurrentPassword(h.entry('aes128.pdf').id, DEMO_PASSWORD);
+    expect(h.jobs.summary.value.primary).toMatchObject({
+      label: { key: 'action.lockCount', params: { count: 2 } },
+    });
+    expect(await h.jobs.lockAll()).toMatchObject({ done: 2 });
+    expect(await opens(h, 'plain.pdf')).toEqual({ first: false, second: true });
+    expect(await opens(h, 'aes128.pdf')).toEqual({ first: false, second: true });
+  });
+
+  it('other options count as other settings, not only another password', async () => {
+    const h = lockHarness();
+    await h.add('plain.pdf');
+    h.fillLockForm('simple-pass');
+    await h.jobs.lockAll();
+    await h.add('owner-only.pdf');
+    h.lockForm.setAlgorithm('aes-128');
+    expect(h.jobs.summary.value.relock).toBe(1);
+    await h.jobs.lockAll();
+    for (const name of ['plain.pdf', 'owner-only.pdf']) {
+      expect(h.view(name).algorithm).toMatchObject({ label: { key: 'algorithm.chip.aes-128' } });
+    }
+    expect(h.jobs.lockApplied.value?.summary).toEqual({
+      list: [{ key: 'algorithm.chip.aes-128' }],
+    });
+  });
+
+  it('opens an already protected input again without asking twice, and without showing its password', async () => {
+    const h = lockHarness();
+    await h.add('aes128.pdf');
+    const entry = h.entry('aes128.pdf');
+    h.jobs.setCurrentPassword(entry.id, DEMO_PASSWORD);
+    h.fillLockForm();
+    await h.jobs.lockAll();
+    expect(entry.currentPassword.value).toBe('');
+
+    await h.add('plain.pdf');
+    h.fillLockForm(OTHER_PASSWORD);
+    expect(await h.jobs.lockAll()).toMatchObject({ done: 2 });
+    expect(h.engine.calls.process.map((call) => [call.name, call.password])).toEqual([
+      ['aes128.pdf', DEMO_PASSWORD],
+      ['aes128.pdf', DEMO_PASSWORD],
+      ['plain.pdf', ''],
+    ]);
+    expect(entry.currentPassword.value).toBe('');
+    expect(await opens(h, 'aes128.pdf')).toEqual({ first: false, second: true });
+
+    // Kept for the result only: once that is discarded the card asks again.
+    h.jobs.redo(entry.id);
+    expect(entry.view.value).toMatchObject({ state: 'encrypted', password: { kind: 'current' } });
+    expect(entry.currentPassword.value).toBe('');
+    expect(await h.jobs.lockAll()).toMatchObject({
+      started: false,
+      refusal: 'current-password-required',
+    });
+  });
+
+  it('applies to settings passed in directly as well', async () => {
+    const h = lockHarness();
+    await h.add('plain.pdf', 'owner-only.pdf');
+    await h.jobs.lockAll(options);
+    await h.jobs.lockAll(options);
+    expect(h.engine.calls.process).toHaveLength(2);
+    expect(await h.jobs.lockAll({ ...options, userPassword: OTHER_PASSWORD })).toMatchObject({
+      done: 2,
+    });
+    expect(h.engine.calls.process).toHaveLength(4);
+    expect(h.jobs.lockApplied.value).toMatchObject({ password: OTHER_PASSWORD });
+    expect(await opens(h, 'plain.pdf')).toEqual({ first: false, second: true });
+  });
+
+  it('restarts what is still running when other settings are submitted', async () => {
+    const h = lockHarness({ engine: { hold: 0.5 } });
+    await h.add('plain.pdf');
+    const first = h.jobs.lockAll(options);
+    await tick();
+    const second = h.jobs.lockAll({ ...options, userPassword: OTHER_PASSWORD });
+    await tick();
+    expect(h.states()).toEqual(['processing']);
+    h.engine.release();
+    expect(await first).toMatchObject({ done: 0, cancelled: 1 });
+    expect(await second).toMatchObject({ done: 1 });
+    expect(h.jobs.lockApplied.value).toMatchObject({ password: OTHER_PASSWORD });
+    expect(await opens(h, 'plain.pdf')).toEqual({ first: false, second: true });
+  });
+
+  it('forgets the applied settings with the last result made with them', async () => {
+    const h = lockHarness({ engine: { hold: 0.5 } });
+    await h.add('plain.pdf', 'owner-only.pdf');
+    h.fillLockForm();
+    const run = h.jobs.lockAll();
+    await tick();
+    expect(h.jobs.lockApplied.value).toMatchObject({ password: NEW_PASSWORD });
+    h.jobs.cancelAll();
+    expect(h.jobs.lockApplied.value).toBeNull();
+    await run;
+
+    h.engine.release();
+    await h.jobs.lockAll();
+    expect(h.jobs.lockApplied.value).not.toBeNull();
+    h.jobs.redo(h.entry('plain.pdf').id);
+    expect(h.jobs.lockApplied.value).not.toBeNull();
+    h.jobs.remove(h.entry('owner-only.pdf').id);
+    expect(h.jobs.lockApplied.value).toBeNull();
+  });
+
+  it('forgets them when every file of the run failed', async () => {
+    const h = lockHarness();
+    await h.add('crash.pdf');
+    h.fillLockForm();
+    expect(await h.jobs.lockAll()).toMatchObject({ failed: 1 });
+    expect(h.jobs.lockApplied.value).toBeNull();
+  });
+
+  it('copies the password the results were made with', async () => {
+    const copied: string[] = [];
+    const h = lockHarness({
+      clipboard: { writeText: (text) => Promise.resolve(void copied.push(text)) },
+    });
+    await h.add('plain.pdf');
+    expect(await h.jobs.copyLockPassword()).toBe(false);
+    h.fillLockForm();
+    await h.jobs.lockAll();
+    h.lockForm.setPassword('typed-afterwards');
+    expect(await h.jobs.copyLockPassword()).toBe(true);
+    expect(copied).toEqual([NEW_PASSWORD]);
+    expect(h.toastKeys()).toEqual(['toast.passwordCopied']);
+  });
+});
+
+describe('lock: passwords go with the last file', () => {
+  it('removing the last file clears the form as "clear" does', async () => {
+    const h = lockHarness();
+    await h.add('plain.pdf', 'owner-only.pdf');
+    const generated = h.lockForm.generate();
+    h.lockForm.setSeparateOwner(true);
+    h.lockForm.setOwnerPassword('owner-Passw0rd');
+    h.lockForm.setOwnerRevealed(true);
+    await h.jobs.lockAll();
+    expect(h.lockForm.revealed.value).toBe(true);
+
+    h.jobs.remove(h.entry('plain.pdf').id);
+    expect(h.lockForm.password.value).toBe(generated);
+    h.jobs.remove(h.entry('owner-only.pdf').id);
+    expect(h.jobs.summary.value.phase).toBe('empty');
+    expect([
+      h.lockForm.password.value,
+      h.lockForm.confirmation.value,
+      h.lockForm.ownerPassword.value,
+    ]).toEqual(['', '', '']);
+    expect(h.lockForm.revealed.value).toBe(false);
+    expect(h.lockForm.ownerRevealed.value).toBe(false);
+    expect(h.lockForm.generated.value).toBe(false);
+    expect(h.jobs.lockApplied.value).toBeNull();
+    // The options are settings, not secrets.
+    expect(h.lockForm.separateOwner.value).toBe(true);
+
+    // The next file meets an empty form.
+    await h.add('plain.pdf');
+    expect(h.lockForm.password.value).toBe('');
+    expect((await h.jobs.lockAll()).refusal).toBe('invalid-form');
+  });
+
+  it('removing the last file in Unlock mode clears it too', async () => {
+    const h = createHarness();
+    await h.add('needs-password.pdf');
+    h.fillLockForm();
+    h.jobs.setUnlockPassword('typed');
+    h.jobs.remove(h.entry('needs-password.pdf').id);
+    expect(h.lockForm.password.value).toBe('');
+    expect(h.jobs.unlockPassword.value).toBe('');
+  });
+});
+
 describe('the two modes side by side', () => {
   it('keeps the files and gives each mode its own view of them', async () => {
     const h = createHarness();

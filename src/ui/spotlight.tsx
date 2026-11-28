@@ -7,7 +7,7 @@ import { t } from '../i18n';
 import { jobs, openMenu, overlay, type Entry } from '../state';
 import { Illustration } from './artwork';
 import { AlgorithmChip, ProgressPercent, StatusChip } from './chips';
-import { ErrorBlock, OutputLine, doneMessage, metaText } from './file-parts';
+import { ErrorBlock, NoteText, OutputLine, doneMessage, metaText } from './file-parts';
 import { Icon } from './icons';
 
 export function Spotlight({ entry }: { entry: Entry }) {
@@ -57,7 +57,11 @@ export function Spotlight({ entry }: { entry: Entry }) {
           <StatusChip view={view}>{running && <ProgressPercent entry={entry} />}</StatusChip>
           <AlgorithmChip view={view} />
         </div>
-        {view.note && state !== 'error' && <p class="spotlight__note">{t(view.note)}</p>}
+        {view.note && state !== 'error' && (
+          <p class="spotlight__note">
+            <NoteText text={view.note} />
+          </p>
+        )}
         {view.warning && <p class="spotlight__note">{t(view.warning)}</p>}
         {state === 'done' && (
           <>

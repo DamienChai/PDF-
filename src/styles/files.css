@@ -59,6 +59,10 @@
   color: var(--color-text-2);
 }
 
+.listhead__part {
+  display: inline-block;
+}
+
 /* A count that is also a way to get to the files it counts. */
 .jump {
   position: relative;
@@ -68,6 +72,17 @@
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+}
+
+/* The 48px hit area of a count ends at the bottom edge of the header instead of reaching out
+   below it. The pinned header is a layer of its own in the browser, and while that layer was
+   taller than what it paints, Chromium now and then left a strip of stale pixels under the
+   header (the bottom of the "choose PDFs" button of the empty state). With a mouse (--hit: 0)
+   the area is the link itself. */
+.listhead__summary .jump::after {
+  top: auto;
+  bottom: calc(-1 * clamp(0px, (var(--hit) - 100%) / 2, var(--space-2) + 2px));
+  transform: translateX(-50%);
 }
 
 .jump--danger {
@@ -205,6 +220,12 @@
   content: ' · ';
 }
 
+/* One item of a list in running text ("不可修改、"): lines break between items, not inside one,
+   unless a single item is wider than the line. */
+.phrase {
+  display: inline-block;
+}
+
 .output {
   display: flex;
   align-items: center;
@@ -336,77 +357,43 @@
   text-align: left;
 }
 
-/* Wide list: the same markup as a table. The list owns the columns and every card borrows them
-   (subgrid), so chips and details line up across rows and a column is only as wide as its
-   widest cell: without a retry field or result actions anywhere, the names get the room. A
-   state change happens in place, inside the row.
-   Browsers without subgrid keep the cards. */
+/* Wider lists: the same markup in columns. The list owns the columns and every card borrows
+   them (subgrid), so what the cards have in common lines up and a state change happens in
+   place, inside the row: the retry field or the result's buttons appear beside the file instead
+   of pushing the next one down. Browsers without subgrid keep the cards.
+
+   Two steps. From 46rem the file (name, chips, facts) stays a block and what the state needs
+   sits to its right. From 56rem there is room for the chips in a column of their own, and the
+   row is a table row. A column is only as wide as its widest cell; the name takes what is left
+   and is never the one that pays for a field three rows further down. */
 @supports (grid-template-columns: subgrid) {
   @container list (min-width: 46rem) {
     .list {
-      /* All but the name are as wide as their widest cell. (The first is the glyph: `auto`
-         rather than its 36px, because the card's own padding counts into an edge track.) */
-      grid-template-columns: auto minmax(7rem, 1fr) auto auto auto;
+      /* (The first column is the glyph: `auto` rather than its 36px, because the card's own
+         padding counts into an edge track.) */
+      grid-template-columns: auto minmax(0, 1fr) auto auto;
       column-gap: var(--space-3);
     }
 
     .card {
       grid-column: 1 / -1;
       grid-template-areas:
-        'doc name chips detail end'
-        'doc info chips detail end';
+        'doc name detail end'
+        'doc chips detail end'
+        'doc info detail end';
       grid-template-columns: subgrid;
-      align-items: center;
-      row-gap: 2px;
-      min-height: 72px;
-      padding: 10px var(--space-2) 10px var(--space-4);
-    }
-
-    .card__name {
-      align-self: end;
-    }
-
-    .card__info {
-      align-self: start;
-      margin-top: 0;
-    }
-
-    /* Two lines at most under the name; an error keeps to one (the details dialog has it all). */
-    .info {
-      display: -webkit-box;
-      overflow: hidden;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      line-clamp: 2;
-    }
-
-    .problem__text {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .card__chips {
-      flex-wrap: nowrap;
-      margin-top: 0;
+      padding-left: var(--space-4);
     }
 
     .card__detail {
+      align-self: center;
       margin-top: 0;
       padding: 0;
     }
 
-    .card__end {
-      margin: 0;
-    }
-
-    .card .doc {
-      align-self: center;
-    }
-
-    .card .inline-form,
-    .card .problem {
-      width: 17rem;
+    /* Wide enough for the placeholder of the retry field beside its button. */
+    .card .inline-form {
+      width: 20rem;
     }
 
     /* The chip and the red field say it; the advice stays available to assistive technology. */
@@ -419,13 +406,100 @@
       white-space: nowrap;
     }
 
-    .card .problem {
-      gap: var(--space-1);
+    /* What went wrong reads under the name, where the facts of a healthy file are; what can be
+       done about it sits to the right, like every other action. */
+    .card--error .card__detail,
+    .card--error .problem {
+      display: contents;
     }
 
-    .card .problem__title {
+    .card--error .card__info {
+      display: none;
+    }
+
+    .card--error .problem__text {
+      display: -webkit-box;
+      grid-area: info;
+      margin-top: 6px;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+
+    .card--error .problem__title {
       display: inline;
       margin-right: 6px;
+    }
+
+    .card--error .problem__actions {
+      grid-area: detail;
+      align-self: center;
+    }
+
+    /* The technical text, when asked for, opens under the row's own content. */
+    .card--error .problem__detail {
+      grid-row: 4;
+      grid-column: 2 / -2;
+      margin-top: var(--space-3);
+    }
+  }
+
+  @container list (min-width: 56rem) {
+    .list {
+      grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    }
+
+    .card {
+      grid-template-areas:
+        'doc name chips detail end'
+        'doc info chips detail end';
+      align-items: center;
+      row-gap: 2px;
+      min-height: 72px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+
+    .card__name {
+      align-self: end;
+    }
+
+    .card__info,
+    .card--error .problem__text {
+      align-self: start;
+      margin-top: 0;
+    }
+
+    /* Two lines at most under the name. */
+    .info {
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+
+    .card__chips {
+      flex-wrap: nowrap;
+      margin-top: 0;
+    }
+
+    .card__end {
+      margin: 0;
+    }
+
+    .card .doc {
+      align-self: center;
+    }
+
+    .card .inline-form {
+      width: 18rem;
+    }
+
+    .card--error .problem__detail {
+      grid-row: 3;
+      margin-top: var(--space-2);
     }
   }
 }
@@ -671,6 +745,11 @@
   margin-top: var(--space-3);
 }
 
+.spotlight .problem__text {
+  max-width: 24em;
+  text-wrap: balance;
+}
+
 .spotlight .problem__actions {
   justify-content: center;
 }
@@ -756,9 +835,11 @@
       color var(--dur-fast) var(--ease-standard);
   }
 
+  /* A large area, and where the pointer rests after choosing files with the button of the
+     empty state: the hover is an edge and a breath of tint, not a filled block. */
   .dropmore:hover {
     border-color: var(--color-accent);
-    background: var(--color-hover);
+    background: color-mix(in srgb, var(--color-accent-subtle) 45%, transparent);
     color: var(--color-text);
   }
 

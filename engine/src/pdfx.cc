@@ -31,6 +31,7 @@
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -870,6 +871,286 @@ namespace
         }
     }
 
+    // ---------------------------------------------------------------------------------------
+    // Traces of encryption in a file that lost its trailer
+    // ---------------------------------------------------------------------------------------
+
+    // The trailer is the only place that says a file is encrypted. When it is gone (typically a
+    // download that stopped early) qpdf rebuilds one around the catalog it finds, and an encrypted
+    // file comes back as an unencrypted one whose strings and streams are still ciphertext.
+    // TraceScanner reads the raw bytes for what the trailer would have said, so that such a file
+    // is refused while an unencrypted file with the same damage is still repaired.
+    constexpr char lost_trailer_warning[] =
+        "unable to find trailer dictionary while recovering damaged file";
+
+    bool
+    trailerWasLost(std::vector<std::string> const& warnings)
+    {
+        return std::any_of(warnings.begin(), warnings.end(), [](std::string const& w) {
+            return w.find(lost_trailer_warning) != std::string::npos;
+        });
+    }
+
+    // One sequential pass over the input in windows of `step` bytes. Every position is examined
+    // in a window that also holds `context` bytes before and after it, which is as far as the
+    // scanner looks around a match. Memory use does not depend on the size of the file.
+    class TraceScanner
+    {
+      public:
+        explicit TraceScanner(std::shared_ptr<BlockCache> const& cache) :
+            source_(cache, "input"),
+            size_(cache->size())
+        {
+        }
+
+        // Describes the first trace of encryption, or returns an empty string if there is none:
+        //  - an /Encrypt entry (the trailer keyword is misspelt, or the cut is behind it);
+        //  - an encryption dictionary of the standard security handler;
+        //  - a stream whose data cannot be what its first filter produces. This is what is left
+        //    when the cut also took the encryption dictionary, which most writers put last.
+        std::string
+        run()
+        {
+            std::vector<unsigned char> window(step + 2 * context);
+            for (uint64_t core = 0; core < size_; core += step) {
+                uint64_t begin = core > context ? core - context : 0;
+                uint64_t end = std::min<uint64_t>(size_, core + step + context);
+                auto length = static_cast<size_t>(end - begin);
+                source_.seek(QIntC::to_offset(begin), SEEK_SET);
+                if (source_.read(reinterpret_cast<char*>(window.data()), length) != length) {
+                    throw ReadFailure();
+                }
+                data_ = window.data();
+                length_ = length;
+                at_end_ = end == size_;
+                auto first = static_cast<size_t>(core - begin);
+                auto last = static_cast<size_t>(std::min<uint64_t>(core + step, size_) - begin);
+                for (size_t i = first; i < last; ++i) {
+                    char const* what = nullptr;
+                    if (data_[i] == '/') {
+                        if (nameAt(i, "/Encrypt")) {
+                            what = "an /Encrypt entry";
+                        } else if (nameAt(i, "/Standard") && encryptionDictionaryAt(i)) {
+                            what = "an encryption dictionary";
+                        }
+                    } else if (data_[i] == 's' && encryptedStreamAt(i)) {
+                        what = "stream data that does not match its filter";
+                    }
+                    if (what != nullptr) {
+                        return std::string(what) + " at offset " + std::to_string(begin + i);
+                    }
+                }
+            }
+            return {};
+        }
+
+      private:
+        static constexpr size_t step = size_t{1} << 20;
+        static constexpr size_t context = size_t{16} << 10;
+
+        enum class Leading { unknown, zlib, jpeg, jpeg2000, text };
+
+        static bool
+        isSpace(unsigned char c)
+        {
+            return c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f' || c == '\0';
+        }
+
+        static bool
+        endsName(unsigned char c)
+        {
+            return isSpace(c) || strchr("()<>[]{}/%", c) != nullptr;
+        }
+
+        bool
+        bytesAt(size_t i, std::string_view literal) const
+        {
+            return i + literal.size() <= length_ &&
+                memcmp(data_ + i, literal.data(), literal.size()) == 0;
+        }
+
+        // True if the name `literal` (with its slash) starts at `i` and ends there too.
+        bool
+        nameAt(size_t i, std::string_view literal) const
+        {
+            if (!bytesAt(i, literal)) {
+                return false;
+            }
+            size_t next = i + literal.size();
+            return next < length_ ? endsName(data_[next]) : at_end_;
+        }
+
+        bool
+        hasName(size_t from, size_t to, std::string_view literal) const
+        {
+            for (size_t i = from; i + literal.size() <= to; ++i) {
+                if (data_[i] == '/' && nameAt(i, literal)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        size_t
+        skipSpaceBackwards(size_t i) const
+        {
+            while (i > 0 && isSpace(data_[i - 1])) {
+                --i;
+            }
+            return i;
+        }
+
+        size_t
+        skipSpace(size_t i, size_t limit) const
+        {
+            while (i < limit && isSpace(data_[i])) {
+                ++i;
+            }
+            return i;
+        }
+
+        // `i` is at "/Standard". True if it is the value of /Filter in an object that also has
+        // /O and /U, i.e. the encryption dictionary of the standard security handler.
+        bool
+        encryptionDictionaryAt(size_t i) const
+        {
+            size_t key_end = skipSpaceBackwards(i);
+            if (key_end < 7 || !bytesAt(key_end - 7, "/Filter")) {
+                return false;
+            }
+            size_t from = i > context ? i - context : 0;
+            for (size_t k = i; k >= from + 3; --k) {
+                if (bytesAt(k - 3, "obj")) {
+                    from = k;
+                    break;
+                }
+            }
+            size_t to = std::min(length_, i + context);
+            for (size_t k = i; k + 6 <= to; ++k) {
+                if (bytesAt(k, "endobj")) {
+                    to = k;
+                    break;
+                }
+            }
+            return hasName(from, to, "/O") && hasName(from, to, "/U");
+        }
+
+        // What the data of a stream with the dictionary [from, to) has to begin with.
+        Leading
+        leadingBytesFor(size_t from, size_t to) const
+        {
+            size_t names = 0;
+            for (size_t i = from; i < to; ++i) {
+                if (data_[i] != '/') {
+                    continue;
+                }
+                ++names;
+                if (!nameAt(i, "/Filter")) {
+                    continue;
+                }
+                // The first filter is the one the raw data is encoded with.
+                size_t value = skipSpace(i + 7, to);
+                if (value < to && data_[value] == '[') {
+                    value = skipSpace(value + 1, to);
+                }
+                size_t end = value;
+                while (end < to && (end == value || !endsName(data_[end]))) {
+                    ++end;
+                }
+                std::string_view filter(reinterpret_cast<char const*>(data_ + value), end - value);
+                if (filter == "/FlateDecode" || filter == "/Fl") {
+                    return Leading::zlib;
+                }
+                if (filter == "/DCTDecode" || filter == "/DCT") {
+                    return Leading::jpeg;
+                }
+                if (filter == "/JPXDecode") {
+                    return Leading::jpeg2000;
+                }
+                if (filter == "/ASCII85Decode" || filter == "/A85" ||
+                    filter == "/ASCIIHexDecode" || filter == "/AHx") {
+                    return Leading::text;
+                }
+                return Leading::unknown;
+            }
+            // No filter. A dictionary with nothing but /Length belongs to a content stream or a
+            // CMap, which are text; anything else (images, fonts, colour profiles) may be binary.
+            return names == 1 && hasName(from, to, "/Length") ? Leading::text : Leading::unknown;
+        }
+
+        // `i` is at "stream". True if this is the keyword that starts the data of a stream object
+        // and the data cannot be what the stream's first filter produces.
+        bool
+        encryptedStreamAt(size_t i) const
+        {
+            if (!bytesAt(i, "stream") || (i >= 3 && bytesAt(i - 3, "end"))) {
+                return false;
+            }
+            size_t data = i + 6;
+            if (bytesAt(data, "\n")) {
+                data += 1;
+            } else if (bytesAt(data, "\r\n")) {
+                data += 2;
+            } else {
+                return false;
+            }
+            size_t dict_end = skipSpaceBackwards(i);
+            if (dict_end < 2 || !bytesAt(dict_end - 2, ">>")) {
+                return false;
+            }
+            // The dictionary starts right behind the "obj" keyword of this object.
+            size_t lowest = dict_end > context ? dict_end - context : 0;
+            size_t dict_begin = 0;
+            bool found = false;
+            for (size_t k = dict_end; k >= lowest + 3 && !found; --k) {
+                if (bytesAt(k - 3, "obj")) {
+                    dict_begin = skipSpace(k, dict_end);
+                    found = bytesAt(dict_begin, "<<");
+                }
+            }
+            if (!found) {
+                return false;
+            }
+            Leading leading = leadingBytesFor(dict_begin, dict_end);
+
+            size_t available = length_ - data;
+            for (std::string_view empty: {"endstream", "\nendstream", "\r\nendstream", "\rendstream"}) {
+                if (bytesAt(data, empty)) {
+                    return false;
+                }
+            }
+            unsigned char const* d = data_ + data;
+            switch (leading) {
+            case Leading::unknown:
+                return false;
+            case Leading::zlib:
+                // RFC 1950: deflate with a window of at most 32 KiB, and a header checksum.
+                return available >= 2 &&
+                    !((d[0] & 0x0f) == 8 && (d[0] >> 4) <= 7 && ((d[0] << 8) | d[1]) % 31 == 0);
+            case Leading::jpeg:
+                return available >= 2 && !(d[0] == 0xff && d[1] == 0xd8);
+            case Leading::jpeg2000:
+                return available >= 4 && memcmp(d, "\x00\x00\x00\x0c", 4) != 0 &&
+                    memcmp(d, "\xff\x4f\xff\x51", 4) != 0;
+            case Leading::text:
+                for (size_t k = 0; k < std::min<size_t>(available, 8); ++k) {
+                    if (!(d[k] == '\t' || d[k] == '\n' || d[k] == '\f' || d[k] == '\r' ||
+                          (d[k] >= 0x20 && d[k] <= 0x7e))) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            return false;
+        }
+
+        JsInputSource source_;
+        uint64_t size_;
+        unsigned char const* data_{nullptr};
+        size_t length_{0};
+        bool at_end_{false};
+    };
+
     Document
     openDocument(std::shared_ptr<BlockCache> const& cache, std::vector<std::string> const& candidates)
     {
@@ -904,6 +1185,15 @@ namespace
             }
         }
         collectWarnings(*doc.pdf, doc.warnings);
+        if (doc.access == Access::none && trailerWasLost(doc.warnings)) {
+            std::string trace = TraceScanner(cache).run();
+            if (!trace.empty()) {
+                throw EngineError{
+                    "damaged",
+                    "the trailer is lost and the rest shows signs of encryption (" + trace +
+                        "); it cannot be decrypted without the trailer"};
+            }
+        }
         return doc;
     }
 
@@ -1185,6 +1475,14 @@ namespace
             throw EngineError{"not-encrypted", ""};
         }
         Description input = describeDocument(doc, *cache);
+
+        // QPDFWriter copies the trailer it is given and fills in /Size only where the key exists.
+        // A trailer that qpdf made up while recovering has none, and without this the output
+        // would lack a required entry.
+        QPDFObjectHandle trailer = doc.pdf->getTrailer();
+        if (!trailer.hasKey("/Size")) {
+            trailer.replaceKey("/Size", QPDFObjectHandle::newInteger(0));
+        }
 
         int handle = io.handle;
         int last_percent = -1;

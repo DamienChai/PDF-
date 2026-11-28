@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
   MAX_SUFFIX_LENGTH,
   OPEN_SOURCE_COMPONENTS,
+  THIRD_PARTY_NOTICES_URL,
   aboutInfo,
   closeOverlay,
   installState,
@@ -99,6 +100,7 @@ function About() {
             <Icon name="chevron-down" />
           </summary>
           <div class="licenses__body">
+            <p class="hint">{t('about.licenses.app')}</p>
             <p class="hint">{t('about.licenses.thirdParty')}</p>
             <ul class="licenses__list">
               {OPEN_SOURCE_COMPONENTS.map((component) => (
@@ -111,6 +113,16 @@ function About() {
                 </li>
               ))}
             </ul>
+            <p class="hint">{t('about.licenses.ijg')}</p>
+            {/* A new tab or window: the list of files stays where it is. */}
+            <a
+              class="link-btn licenses__notices"
+              href={THIRD_PARTY_NOTICES_URL}
+              target="_blank"
+              rel="noopener"
+            >
+              {t('about.licenses.notices')}
+            </a>
           </div>
         </details>
       </div>

@@ -2,6 +2,12 @@ import { defineConfig } from 'vitest/config';
 import type { Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import {
+  BUNDLED_PACKAGES,
+  NOTICES_FILE,
+  buildNotices,
+  packageOfModule,
+} from './scripts/third-party-notices.ts';
 
 const APP_NAME = 'PDF Key';
 const BRAND_COLOR = '#4655D6';
@@ -46,6 +52,57 @@ function contentSecurityPolicy(): Plugin {
   };
 }
 
+/**
+ * Ships the third-party notices (scripts/third-party-notices.ts) as a file of the app, so that
+ * every copy of the build carries them and they are precached with the rest. The development
+ * server answers the same address.
+ */
+function thirdPartyNotices(): Plugin {
+  const root = import.meta.dirname;
+  return {
+    name: 'pdfkey:third-party-notices',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: NOTICES_FILE, source: buildNotices(root) });
+    },
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const pathname = (request.url ?? '').split('?')[0];
+        if (pathname !== `${server.config.base}${NOTICES_FILE}`) return next();
+        response.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        response.end(buildNotices(root));
+      });
+    },
+  };
+}
+
+/**
+ * Fails the build when a chunk contains code of a package the notices do not cover. One instance
+ * per build: the app, the engine's worker, and the service worker.
+ */
+function noticesCoverBundle(): Plugin {
+  const covered: readonly string[] = BUNDLED_PACKAGES;
+  return {
+    name: 'pdfkey:notices-cover-bundle',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const missing = new Set<string>();
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type !== 'chunk') continue;
+        for (const id of Object.keys(chunk.modules)) {
+          const name = packageOfModule(id);
+          if (name !== null && !covered.includes(name)) missing.add(name);
+        }
+      }
+      if (missing.size > 0) {
+        this.error(
+          `The build contains code of ${[...missing].join(', ')}, which ${NOTICES_FILE} does ` +
+            'not cover. Add it to BUNDLED_PACKAGES in scripts/third-party-notices.ts.',
+        );
+      }
+    },
+  };
+}
+
 const pwa = VitePWA({
   // A hand-written worker (src/pwa/sw.ts) into which the precache list is injected.
   strategies: 'injectManifest',
@@ -59,6 +116,7 @@ const pwa = VitePWA({
   injectManifest: {
     // A classic (non-module) worker script: works in every browser that has service workers.
     rollupFormat: 'iife',
+    buildPlugins: { vite: [noticesCoverBundle()] },
     // The complete build output, so the installed app works offline from its first launch:
     // app shell, engine worker bundle, the WebAssembly module, icons.
     globPatterns: ['**/*'],
@@ -154,7 +212,13 @@ const pwa = VitePWA({
 // (GitHub Pages project sites, a custom domain, or a local static server).
 export default defineConfig({
   base: './',
-  plugins: [preact(), pwa, contentSecurityPolicy()],
+  plugins: [preact(), pwa, contentSecurityPolicy(), thirdPartyNotices(), noticesCoverBundle()],
+  optimizeDeps: {
+    // The dev server looks for dependencies to pre-bundle in every HTML file under the root.
+    // The app has one page; the others (engine/browser-check/app) belong to tools with their own
+    // Vite configuration and aliases.
+    entries: ['index.html'],
+  },
   build: {
     target: 'es2022',
     sourcemap: false,
@@ -162,6 +226,7 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
+    plugins: () => [noticesCoverBundle()],
   },
   test: {
     environment: 'node',

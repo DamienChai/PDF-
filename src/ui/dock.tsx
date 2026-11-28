@@ -11,7 +11,7 @@ import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import { t } from '../i18n';
 import { jobs, lockForm, mode, overlay, type RunReport, type Summary } from '../state';
 import { BusyBar, DoneBar, FreeBar, IdleBar, LockBar, UnlockBar } from './dock-bars';
-import { UNLOCK_FIELD_ID, unlockField, useTapGuard } from './dock-parts';
+import { OverallProgress, UNLOCK_FIELD_ID, unlockField, useTapGuard } from './dock-parts';
 import { inlinePasswordField } from './file-parts';
 import { afterRender, focusQuietly } from './focus';
 import { Icon } from './icons';
@@ -163,6 +163,9 @@ export function Dock() {
         </div>
       )}
       <div class="dock__bar" ref={bar} data-kind={kind}>
+        {/* Phone: the typed password is being tried and the bar keeps its field; progress runs
+            along the bar's top edge (the inspector shows it under the field, see UnlockBar). */}
+        {kind === 'password' && processing && <OverallProgress class="dock__edge-progress" />}
         {/* Keyed: a different kind of bar is new content (and animates in), the same kind is not. */}
         <div class="dock__content" key={kind}>
           {content}

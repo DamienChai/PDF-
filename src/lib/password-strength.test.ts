@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { COMMON_PASSWORDS, LONGEST_COMMON_PASSWORD } from './common-passwords';
+import {
+  COMMON_PASSWORDS,
+  LONGEST_COMMON_PASSWORD,
+  LONGEST_PINYIN_SYLLABLE,
+  PINYIN_SYLLABLES,
+  isUsualLetterPair,
+} from './common-passwords';
 import { generatePassword } from './password-generator';
 import { estimateStrength } from './password-strength';
 
@@ -31,6 +37,41 @@ describe('common password list', () => {
     expect(LONGEST_COMMON_PASSWORD).toBe(Math.max(...entries.map((entry) => entry.length)));
     expect(COMMON_PASSWORDS.get('123456')).toBe(1);
     expect(COMMON_PASSWORDS.get('password')).toBe(2);
+  });
+});
+
+describe('pinyin syllables and letter pairs', () => {
+  it('are compact: a few hundred short syllables, one row of letters per letter', () => {
+    const syllables = [...PINYIN_SYLLABLES];
+    expect(syllables.length).toBeGreaterThanOrEqual(150);
+    expect(syllables.length).toBeLessThanOrEqual(300);
+    for (const syllable of syllables) expect(syllable).toMatch(/^[a-z]{2,6}$/);
+    expect(LONGEST_PINYIN_SYLLABLE).toBe(6);
+    for (const surname of ['wang', 'li', 'zhang', 'liu', 'chen', 'ou', 'yang']) {
+      expect(PINYIN_SYLLABLES.has(surname), surname).toBe(true);
+    }
+  });
+
+  it('know which letters follow which in ordinary words', () => {
+    const usual = (word: string): boolean =>
+      [...word].every((char, i) => i === 0 || isUsualLetterPair(word[i - 1]!, char));
+    for (const word of ['company', 'elephant', 'holiday', 'michael', 'summer', 'question']) {
+      expect(usual(word), word).toBe(true);
+    }
+    for (const letters of ['xkqmvlpt', 'qzj', 'wvx', 'bq']) {
+      expect(usual(letters), letters).toBe(false);
+    }
+    // Roughly half of all pairs: enough to tell words from random letters, not a dictionary.
+    let pairs = 0;
+    for (let a = 97; a < 123; a++) {
+      for (let b = 97; b < 123; b++) {
+        if (isUsualLetterPair(String.fromCharCode(a), String.fromCharCode(b))) pairs++;
+      }
+    }
+    expect(pairs).toBeGreaterThan(300);
+    expect(pairs).toBeLessThan(420);
+    expect(isUsualLetterPair('A', 'b')).toBe(false);
+    expect(isUsualLetterPair('1', 'a')).toBe(false);
   });
 });
 
@@ -85,6 +126,96 @@ describe('estimateStrength', () => {
       const estimate = estimateStrength(password);
       expect(estimate.score, password).toBeLessThanOrEqual(1);
       expect(estimate.hints, password).toContain('common-password');
+    }
+  });
+
+  it('does not rate a pinyin name above weak, whatever is put behind it', () => {
+    const names = [
+      'zhangwei123',
+      'Zhangwei1990',
+      'liuyang1988',
+      'zhangwei',
+      'wangxiaoming',
+      'WangXiaoMing',
+      'lihua520',
+      'ZhangWei88',
+      'liming2008',
+      'chenjing0816',
+      'LIUYANG2012',
+      'zhaolei@163',
+      'xiaoming!1999',
+      'beijing2008',
+      'shanghai1',
+    ];
+    for (const password of names) {
+      const estimate = estimateStrength(password);
+      expect(estimate.score, password).toBeLessThanOrEqual(1);
+      expect(estimate.hints, password).toContain('name-or-word');
+    }
+    // A full name by itself is worth next to nothing.
+    expect(estimateStrength('zhangwei').score).toBe(0);
+    expect(estimateStrength('wangxiaoming').bits).toBeLessThan(28);
+  });
+
+  it('does not rate an ordinary word with digits behind it above weak', () => {
+    const words = [
+      'Company2025',
+      'company2025',
+      'COMPANY2025',
+      'Company2025!',
+      'holiday99',
+      'Elephant7',
+      'mittens2019',
+      'guitarhero99',
+      'international1',
+      'Christopher123!',
+      'window4821',
+      'invoice20240131',
+    ];
+    for (const password of words) {
+      const estimate = estimateStrength(password);
+      expect(estimate.score, password).toBeLessThanOrEqual(1);
+      expect(estimate.hints, password).toContain('name-or-word');
+    }
+    // The digits still count for what they are: eight random ones are worth something.
+    expect(estimateStrength('company48302759').bits).toBeGreaterThan(
+      estimateStrength('company2025').bits + 15,
+    );
+  });
+
+  it('leaves alone what is not a word with digits', () => {
+    const unchanged: [string, number][] = [
+      // Letters nobody would read as a word, however they end.
+      ['xkqmvlptrzwsjh42', 4],
+      ['xkqmvlptrzwsjh', 3],
+      ['hTkPzQwLmN42', 3],
+      // Passphrases and mixed passwords.
+      ['correct horse battery staple', 4],
+      ['purple-monkey-dishwasher-42', 4],
+      ['MyDogIsCalledRex2019!', 4],
+      ['G8v$kPz3!rTq', 3],
+      ['x7#Kq9!mZ2', 3],
+      ['hT7$kPz2', 2],
+    ];
+    for (const [password, score] of unchanged) {
+      const estimate = estimateStrength(password);
+      expect(estimate.score, password).toBe(score);
+      expect(estimate.hints, password).not.toContain('name-or-word');
+    }
+  });
+
+  it('rarely takes random letters followed by digits for a word', () => {
+    for (const [length, atLeast] of [
+      [12, 3],
+      [14, 3],
+      [16, 4],
+    ] as const) {
+      const passwords = randomStrings(LOWER, length, 1000, 77 + length).map(
+        (letters, index) => `${letters}${10 + (index % 90)}`,
+      );
+      const lowered = passwords.filter((password) => estimateStrength(password).score < atLeast);
+      // Under 2 %: letter pairs are no dictionary, and chance sequences cost a level now and then.
+      expect(lowered.length, `${length} letters`).toBeLessThan(20);
     }
   });
 

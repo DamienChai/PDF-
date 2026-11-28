@@ -188,12 +188,15 @@ def record(
     wrong: str = "not-the-password",
     expect_warnings: bool = False,
     tags: tuple[str, ...] = (),
+    text_from: str | None = None,
 ) -> None:
     """Adds a readable fixture to the manifest, with expectations read back by pikepdf and pypdf.
 
     `user` / `owner` are the passwords as a person would type them. `user_bytes` / `owner_bytes`
     are the exact bytes the file was encrypted with, when they are not what a compliant writer
-    derives from the typed text (UTF-8 for R5/R6, PDFDocEncoding before).
+    derives from the typed text (UTF-8 for R5/R6, PDFDocEncoding before). `text_from` names the
+    fixture pypdf reads instead, for a file pypdf itself cannot open (it needs the end-of-file
+    marker) but whose pages are those of that other fixture.
     """
     path = HERE / name
     data = path.read_bytes()
@@ -213,7 +216,7 @@ def record(
         # pikepdf encodes a str password as UTF-8 when opening; bytes are passed on verbatim.
         pdf = pikepdf.open(path, password=best)
     with pdf:
-        reader = pypdf.PdfReader(path)
+        reader = pypdf.PdfReader(HERE / (text_from or name))
         if reader.is_encrypted:
             assert reader.decrypt(best), f"{name}: pypdf cannot open it"
         if user_bytes:
@@ -265,6 +268,12 @@ def record_error(name: str, description: str, error: str, password: str = "") ->
 def save(pdf: pikepdf.Pdf, name: str, **kwargs) -> None:
     kwargs.setdefault("static_id", True)
     pdf.save(HERE / name, **kwargs)
+
+
+def cut_off(source: str, target: str, keep: float) -> None:
+    """Writes the first `keep` (0..1) of `source` as `target`: a download that stopped early."""
+    data = (HERE / source).read_bytes()
+    (HERE / target).write_bytes(data[: int(len(data) * keep)])
 
 
 def check_bytes_open(name: str, password: bytes, expected: int) -> None:
@@ -626,10 +635,27 @@ def main() -> None:
     record("damaged-recoverable-r4.pdf", "AES-128 with a wrong startxref offset", user="user", owner="owner",
            expect_warnings=True, tags=("damaged",))
 
+    # Cut inside the cross-reference table: the trailer is gone, every object is still there.
+    cut_off("plain.pdf", "truncated-plain.pdf", 0.97)
+    record("truncated-plain.pdf", "Unencrypted, cut off before the trailer (qpdf rebuilds table and trailer)",
+           expect_warnings=True, tags=("plain", "damaged"), text_from="plain.pdf")
+
     # --- errors -----------------------------------------------------------------------------------
     plain_bytes = (HERE / "plain.pdf").read_bytes()
     (HERE / "damaged-unrecoverable.pdf").write_bytes(plain_bytes[:700])
     record_error("damaged-unrecoverable.pdf", "A PDF cut off after 700 bytes: nothing to recover", "damaged")
+
+    # Encrypted and cut off before the trailer. The trailer is the only thing that says "encrypted":
+    # qpdf alone rebuilds these as unencrypted documents whose streams are still ciphertext, so the
+    # engine has to refuse them. The R6 file still has half of its encryption dictionary; in the
+    # other two that is gone as well and only the ciphertext gives the file away.
+    cut_off("aes-256-r6.pdf", "truncated-r6.pdf", 0.9)
+    record_error("truncated-r6.pdf", "AES-256 (R6), cut off at 90 %: no trailer left", "damaged", password="user")
+    cut_off("rc4-128-r3.pdf", "truncated-r3.pdf", 0.9)
+    record_error("truncated-r3.pdf", "RC4-128 (R3), cut off at 90 %: no trailer left", "damaged", password="user")
+    cut_off("aes-128-r4.pdf", "truncated-early-r4.pdf", 0.5)
+    record_error("truncated-early-r4.pdf", "AES-128 (R4), cut off at 50 %: no trailer, no encryption dictionary",
+                 "damaged", password="user")
 
     (HERE / "not-a-pdf.bin").write_bytes(
         b"\x89PNG\r\n\x1a\n" + bytes(random.Random("not-a-pdf").getrandbits(8) for _ in range(3000))

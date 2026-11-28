@@ -44,6 +44,21 @@ test.describe('settings sheet', () => {
       await expectFocusWithin(settings);
     }
 
+    // The licences are folded away at first. Their link is a stop only once they are opened,
+    // and then it is the last one: Tab goes from it to the first.
+    const licences = settings.getByText(app.t('about.licenses'), { exact: true });
+    const notices = settings.getByRole('link', { name: app.t('about.licenses.notices') });
+    await expect(notices).toBeHidden();
+    await licences.focus();
+    await page.keyboard.press('Enter');
+    await expect(notices).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(notices).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(app.closeButton).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(notices).toBeFocused();
+
     await page.keyboard.press('Escape');
     await expect(settings).toHaveCount(0);
     await expect(app.settingsButton).toBeFocused();

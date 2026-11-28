@@ -4,7 +4,10 @@
  * src/pwa/incoming.ts and are wired up in app.ts.)
  */
 import { signal, type ReadonlySignal } from '@preact/signals';
+import type { Message } from '../i18n';
+import { FOLDER_LIMITS, readFolders, type FolderLimits } from '../lib/folders';
 import type { FileSource } from './jobs';
+import type { ToastTone } from './toasts';
 
 export interface Intake {
   /** Files are being dragged over the window: show the drop overlay. */
@@ -13,7 +16,8 @@ export interface Intake {
   pickFiles(): void;
   /**
    * Listens for drag and drop and paste on the window from now on. Dropping a file anywhere on
-   * the page adds it (and never navigates away to it). Returns a function that stops listening.
+   * the page adds it (and never navigates away to it); dropping a folder adds the PDFs inside.
+   * Returns a function that stops listening.
    */
   attach(): () => void;
 }
@@ -27,6 +31,10 @@ export interface IntakeEnvironment {
   target?: Listeners | undefined;
   /** Shows the system file picker and reports the chosen files (nothing if dismissed). */
   openPicker?: ((onFiles: (files: File[]) => void) => void) | undefined;
+  /** Tells the user what happened to a folder that did not simply turn into files. */
+  notify?: ((message: Message, tone: ToastTone) => void) | undefined;
+  /** How far a dropped folder is read. */
+  folderLimits?: FolderLimits | undefined;
   setTimeout?: (callback: () => void, ms: number) => unknown;
   clearTimeout?: (handle: unknown) => void;
 }
@@ -47,9 +55,57 @@ function carriesFiles(transfer: DataTransfer | null | undefined): transfer is Da
   return Array.prototype.indexOf.call(transfer.types ?? [], 'Files') >= 0;
 }
 
-/** The files of a drop or paste. Folders and non-file items are not included. */
+/**
+ * Everything of a drop or paste that the browser presents as a file. A folder is among them, as
+ * a `File` that cannot be read; `sortTransfer` tells the two apart.
+ */
 export function filesFromTransfer(transfer: DataTransfer | null | undefined): File[] {
   return transfer?.files ? Array.from(transfer.files) : [];
+}
+
+interface Sorted {
+  files: File[];
+  folders: FileSystemDirectoryEntry[];
+  /** Files or folders: this browser does not say which. */
+  unsorted: File[];
+}
+
+/**
+ * Separates dropped files from dropped folders. Must run inside the event handler: the items of
+ * a transfer are gone once the handler returns.
+ */
+function sortTransfer(transfer: DataTransfer): Sorted {
+  const items = transfer.items ? Array.from(transfer.items) : [];
+  const fileItems = items.filter((item) => item.kind === 'file');
+  if (
+    fileItems.length === 0 ||
+    fileItems.some((item) => typeof item.webkitGetAsEntry !== 'function')
+  ) {
+    return { files: [], folders: [], unsorted: filesFromTransfer(transfer) };
+  }
+  const sorted: Sorted = { files: [], folders: [], unsorted: [] };
+  for (const item of fileItems) {
+    // null for a file that does not come from the file system (a synthetic drop, some pastes).
+    const entry = item.webkitGetAsEntry();
+    if (entry?.isDirectory) {
+      sorted.folders.push(entry as FileSystemDirectoryEntry);
+    } else {
+      const file = item.getAsFile();
+      if (file) sorted.files.push(file);
+    }
+  }
+  return sorted;
+}
+
+/** A folder has a `File` too, but its content cannot be read. */
+function isReadable(file: File): Promise<boolean> {
+  return file
+    .slice(0, 1)
+    .arrayBuffer()
+    .then(
+      () => true,
+      () => false,
+    );
 }
 
 export function createIntake(env: IntakeEnvironment): Intake {
@@ -101,21 +157,51 @@ export function createIntake(env: IntakeEnvironment): Intake {
     if (depth === 0) endDrag();
   }
 
+  /** Adds the PDFs inside dropped folders, however deep, and says so when that is not all. */
+  async function addFolders(
+    folders: readonly FileSystemDirectoryEntry[],
+    source: FileSource,
+  ): Promise<void> {
+    const found = await readFolders(folders, env.folderLimits ?? FOLDER_LIMITS);
+    if (found.files.length > 0) env.addFiles(found.files, source);
+    if (found.truncated) env.notify?.({ key: 'toast.folderLimit' }, 'neutral');
+    else if (found.files.length > 0) return;
+    else if (found.unreadable) env.notify?.({ key: 'toast.folderUnreadable' }, 'error');
+    else env.notify?.({ key: 'toast.folderEmpty' }, 'error');
+  }
+
+  /** Where the browser cannot tell folders from files: whatever can be read is a file. */
+  async function addReadable(candidates: readonly File[], source: FileSource): Promise<void> {
+    const readable = await Promise.all(candidates.map(isReadable));
+    const files = candidates.filter((_, index) => readable[index]);
+    if (files.length > 0) env.addFiles(files, source);
+    if (files.length < candidates.length) {
+      env.notify?.({ key: 'toast.folderUnreadable' }, 'error');
+    }
+  }
+
+  function take(transfer: DataTransfer, source: FileSource): void {
+    const { files, folders, unsorted } = sortTransfer(transfer);
+    // Files first and at once; reading folders takes a moment.
+    if (files.length > 0) env.addFiles(files, source);
+    if (folders.length > 0) void addFolders(folders, source);
+    if (unsorted.length > 0) void addReadable(unsorted, source);
+  }
+
   function onDrop(event: Event): void {
     const transfer = (event as DragEvent).dataTransfer;
     if (!carriesFiles(transfer)) return;
     event.preventDefault();
     endDrag();
-    const files = filesFromTransfer(transfer);
-    if (files.length > 0) env.addFiles(files, 'drop');
+    take(transfer, 'drop');
   }
 
   function onPaste(event: Event): void {
-    const files = filesFromTransfer((event as ClipboardEvent).clipboardData);
+    const transfer = (event as ClipboardEvent).clipboardData;
     // Pasted text (a password, say) carries no files and is none of our business.
-    if (files.length === 0) return;
+    if (!transfer || filesFromTransfer(transfer).length === 0) return;
     event.preventDefault();
-    env.addFiles(files, 'paste');
+    take(transfer, 'paste');
   }
 
   const handlers: Record<(typeof DRAG_EVENTS)[number], (event: Event) => void> = {

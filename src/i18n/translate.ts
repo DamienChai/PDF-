@@ -86,13 +86,50 @@ export function translate(target: Locale, key: MessageKey, params?: MessageParam
   });
 }
 
+/**
+ * In running text only the first item of a list starts with a capital ("No printing, no
+ * copying"). A capital that is not followed by a lower-case letter is an acronym and stays.
+ */
+function continued(target: Locale, item: string): string {
+  if (target !== 'en' || !/^[A-Z][a-z]/.test(item)) return item;
+  return item.charAt(0).toLowerCase() + item.slice(1);
+}
+
+function translateItems(target: Locale, list: readonly Message[]): string[] {
+  return list.map((item, index) => {
+    const text = translate(target, item.key, item.params);
+    return index === 0 ? text : continued(target, text);
+  });
+}
+
 function translateText(target: Locale, text: Text): string {
   if ('list' in text) {
-    return text.list
-      .map((item) => translate(target, item.key, item.params))
-      .join(translate(target, 'list.separator'));
+    return translateItems(target, text.list).join(translate(target, 'list.separator'));
   }
   return translate(target, text.key, text.params);
+}
+
+/** A list as it is set: the phrases, and what goes between two of them. */
+export interface Phrases {
+  /** Each phrase with the punctuation that follows it. */
+  readonly phrases: readonly string[];
+  /** The white space between two phrases: where a line may break. Empty in Chinese. */
+  readonly gap: string;
+}
+
+/**
+ * The phrases of a list in the current language, for setting each one unbreakable: a line then
+ * ends after a phrase, never inside one. Reactive like `t()`.
+ */
+export function phrasesOf(text: MessageList): Phrases {
+  const target = locale.value;
+  const separator = translate(target, 'list.separator');
+  const mark = separator.trimEnd();
+  const items = translateItems(target, text.list);
+  return {
+    phrases: items.map((item, index) => (index < items.length - 1 ? item + mark : item)),
+    gap: separator.slice(mark.length),
+  };
 }
 
 /**

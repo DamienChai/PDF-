@@ -1,3 +1,4 @@
+import { effect } from '@preact/signals';
 import { describe, expect, it, vi } from 'vitest';
 import { checkNewPasswords } from '../engine/passwords';
 import { ALL_PERMISSIONS } from '../engine/types';
@@ -121,6 +122,37 @@ describe('lock form: confirmation', () => {
     form.setPassword('secret-2');
     expect(form.valid.value).toBe(false);
     expect(form.errors.value.confirmation?.key).toBe('lock.error.mismatch');
+  });
+});
+
+describe('lock form: Enter in the password field', () => {
+  it('moves on to the confirmation while that is still to be typed', () => {
+    const { form } = setup();
+    expect(form.passwordEnter.value).toBe('next');
+    form.setPassword('correct horse');
+    expect(form.passwordEnter.value).toBe('next');
+    // Moving on is no submit attempt: nothing is reported as missing.
+    expect(keys(form.errors.value)).toEqual(NONE);
+  });
+
+  it('submits once the confirmation is typed, or not needed', () => {
+    const { form } = setup();
+    form.setPassword('correct horse');
+    form.setConfirmation('correct h');
+    expect(form.passwordEnter.value).toBe('go');
+    form.setConfirmation('');
+    expect(form.passwordEnter.value).toBe('next');
+    form.setRevealed(true);
+    expect(form.confirmationNeeded.value).toBe(false);
+    expect(form.passwordEnter.value).toBe('go');
+  });
+
+  it('submits a generated password, which needs no confirmation', () => {
+    const { form } = setup();
+    form.generate();
+    expect(form.passwordEnter.value).toBe('go');
+    form.setRevealed(false);
+    expect(form.passwordEnter.value).toBe('go');
   });
 });
 
@@ -272,6 +304,38 @@ describe('lock form: separate permissions password', () => {
     expect(form.submit()).toMatchObject({ ok: false, field: 'ownerPassword' });
   });
 
+  it('compares them as they would be written, not as they were typed', () => {
+    const { form } = setup();
+    form.setRevealed(true);
+    form.setSeparateOwner(true);
+    form.setPermission('print', 'none');
+
+    // Full-width "abc123": SASLprep makes it the open password.
+    const fullWidth = String.fromCodePoint(0xff41, 0xff42, 0xff43, 0xff11, 0xff12, 0xff13);
+    form.setPassword('abc123');
+    form.setOwnerPassword(fullWidth);
+    expect(form.problems.value.ownerPassword?.key).toBe('lock.error.ownerSame');
+    expect(form.errors.value.ownerPassword?.key).toBe('lock.error.ownerSame');
+    expect(form.submit()).toMatchObject({ ok: false, field: 'ownerPassword' });
+
+    // Composed and decomposed accents, under either algorithm.
+    form.setPassword(`caf${String.fromCodePoint(0xe9)}`);
+    form.setOwnerPassword(`cafe${String.fromCodePoint(0x301)}`);
+    expect(form.problems.value.ownerPassword?.key).toBe('lock.error.ownerSame');
+    form.setAlgorithm('aes-128');
+    expect(form.problems.value.ownerPassword?.key).toBe('lock.error.ownerSame');
+
+    // AES-128 cannot write full-width letters at all: that is what it says then.
+    form.setPassword('abc123');
+    form.setOwnerPassword(fullWidth);
+    expect(form.problems.value.ownerPassword?.key).toBe('lock.error.notEncodable.aes-128');
+
+    form.setAlgorithm('aes-256');
+    form.setOwnerPassword(`${fullWidth}4`);
+    expect(form.problems.value.ownerPassword).toBeNull();
+    expect(form.submit().ok).toBe(true);
+  });
+
   it('maps the permission controls to engine permissions', () => {
     const { form } = setup();
     form.setSeparateOwner(true);
@@ -319,6 +383,32 @@ describe('lock form: separate permissions password', () => {
     // The choices themselves are no secret and come back with the switch.
     form.setSeparateOwner(true);
     expect(form.permissions.value.print).toBe('none');
+  });
+});
+
+describe('lock form: the options as a signal', () => {
+  it('follows the controls, so that the file list can react to the form', () => {
+    const { form } = setup();
+    const passwords: string[] = [];
+    const stop = effect(() => void passwords.push(form.options.value.userPassword));
+    form.setPassword('a');
+    form.setPassword('ab');
+    stop();
+    expect(passwords).toEqual(['', 'a', 'ab']);
+
+    form.setAlgorithm('aes-128');
+    form.setSeparateOwner(true);
+    form.setOwnerPassword('b');
+    form.setPermission('extract', false);
+    form.setEncryptMetadata(false);
+    expect(form.options.value).toEqual({
+      algorithm: 'aes-128',
+      userPassword: 'ab',
+      ownerPassword: 'b',
+      permissions: { ...ALL_PERMISSIONS, extract: false },
+      encryptMetadata: false,
+    });
+    expect(form.toEncryptOptions()).toEqual(form.options.value);
   });
 });
 
@@ -455,6 +545,17 @@ describe('lock form: copy', () => {
     const { form } = setup({ writeText });
     form.setPassword('secret-1');
     void form.copyPassword();
+    expect(writeText).toHaveBeenCalledTimes(1);
+  });
+
+  it('copies a password that is no longer in the form', async () => {
+    const writeText = vi.fn(async () => undefined);
+    const { form, toastKeys } = setup({ writeText });
+    form.setPassword('in-the-form');
+    expect(await form.copyText('applied-earlier')).toBe(true);
+    expect(writeText).toHaveBeenCalledWith('applied-earlier');
+    expect(toastKeys()).toEqual(['toast.passwordCopied']);
+    expect(await form.copyText('')).toBe(false);
     expect(writeText).toHaveBeenCalledTimes(1);
   });
 

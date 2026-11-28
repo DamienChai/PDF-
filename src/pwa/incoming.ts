@@ -3,16 +3,27 @@
  * "Open with" on desktop (File Handling API / launch queue).
  */
 import {
+  SHARE_LOST_PARAM,
   SHARE_SOURCE_PARAM,
   SHARE_SOURCE_VALUE,
   isShareTargetUrl,
+  lostInShare,
   takeStashedFiles,
 } from './share-stash';
 
 export type IncomingSource = 'share-target' | 'file-handler';
 
+/** Files were shared to the app and not all of them arrived. */
+export interface ShareProblem {
+  /** Files of that share that did arrive. */
+  received: number;
+  /** Files that did not; null when their number is unknown. */
+  lost: number | null;
+}
+
 type FilesHandler = (files: File[], source: IncomingSource) => void;
 type UrlHandler = (url: URL) => void;
+type ShareProblemHandler = (problem: ShareProblem) => void;
 
 // --- Launch Handler / File Handling API (not part of the TypeScript DOM library) ---------------
 
@@ -64,12 +75,15 @@ function sameDocument(a: URL, b: URL): boolean {
 export interface IncomingFiles {
   onIncomingFiles(handler: FilesHandler): () => void;
   onLaunchUrl(handler: UrlHandler): () => void;
+  onShareProblem(handler: ShareProblemHandler): () => void;
 }
 
 export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
   let filesHandler: FilesHandler | null = null;
   let urlHandler: UrlHandler | null = null;
+  let problemHandler: ShareProblemHandler | null = null;
   const pendingBatches: Batch[] = [];
+  const pendingProblems: ShareProblem[] = [];
   let pendingUrl: URL | null = null;
   let started = false;
   let consumerSetAt = 0;
@@ -82,6 +96,14 @@ export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
         filesHandler(batch.files, batch.source);
       } catch (error) {
         // A failing consumer must not block later batches.
+        console.error(error);
+      }
+    }
+    while (problemHandler && pendingProblems.length > 0) {
+      const problem = pendingProblems.shift()!;
+      try {
+        problemHandler(problem);
+      } catch (error) {
         console.error(error);
       }
     }
@@ -108,28 +130,55 @@ export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
       const url = new URL(env.currentUrl());
       if (url.searchParams.get(SHARE_SOURCE_PARAM) !== SHARE_SOURCE_VALUE) return;
       url.searchParams.delete(SHARE_SOURCE_PARAM);
+      url.searchParams.delete(SHARE_LOST_PARAM);
       env.replaceUrl(url.href);
     } catch {
       // Purely cosmetic.
     }
   }
 
-  async function collectNow(): Promise<void> {
+  function parseUrl(url: string | undefined): URL | null {
     try {
-      if (!env.caches) return;
-      for (const files of await takeStashedFiles(env.caches, env.scope)) {
-        deliver(files, 'share-target');
+      return url === undefined ? null : new URL(url, env.scope);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * `announcement` is the address that brought the page here, if it may be the one the worker
+   * sends the browser to after a share: it says whether files were lost on the way.
+   */
+  async function collectNow(announcement: URL | null): Promise<void> {
+    const shared = announcement?.searchParams.get(SHARE_SOURCE_PARAM) === SHARE_SOURCE_VALUE;
+    let lost = announcement ? lostInShare(announcement) : null;
+    let received = 0;
+    try {
+      if (env.caches) {
+        for (const files of await takeStashedFiles(env.caches, env.scope)) {
+          received += files.length;
+          deliver(files, 'share-target');
+        }
+      } else if (shared) {
+        lost ??= 'all';
       }
     } catch {
-      // Cache Storage unavailable (private mode, storage pressure): nothing to collect.
+      // Cache Storage unavailable (private mode, storage pressure): nothing can be collected.
+      // After a share that is the loss of its files; otherwise there was nothing to expect.
+      if (shared) lost ??= 'all';
     } finally {
       removeShareMarker();
+    }
+    if (lost !== null) {
+      pendingProblems.push({ received, lost: lost === 'all' ? null : lost });
+      flush();
     }
   }
 
   /** Collections run one after the other, so a later call also sees what arrived meanwhile. */
-  function collectShared(): Promise<void> {
-    collection = collection.then(collectNow);
+  function collectShared(announcement: string | undefined): Promise<void> {
+    const url = parseUrl(announcement);
+    collection = collection.then(() => collectNow(url));
     return collection;
   }
 
@@ -146,30 +195,28 @@ export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
       );
       return;
     }
-    const arrivedAt = env.now();
-    // A share that re-used this window instead of loading a fresh page.
-    await collectShared();
-    if (!params.targetURL) return;
-    try {
-      const target = new URL(params.targetURL, env.scope);
-      // Shares are about their files, which travel through the stash.
-      if (isShareTargetUrl(target.href, env.scope)) return;
-      if (target.searchParams.get(SHARE_SOURCE_PARAM) === SHARE_SOURCE_VALUE) return;
-      const isInitialLaunch =
-        arrivedAt - consumerSetAt < INITIAL_LAUNCH_WINDOW_MS &&
-        sameDocument(target, new URL(env.initialUrl));
-      if (isInitialLaunch) return;
-      pendingUrl = target;
-      flush();
-    } catch {
-      // Unparsable URL: ignore.
-    }
+    const target = parseUrl(params.targetURL);
+    const initial = parseUrl(env.initialUrl);
+    const isInitialLaunch =
+      target !== null &&
+      initial !== null &&
+      env.now() - consumerSetAt < INITIAL_LAUNCH_WINDOW_MS &&
+      sameDocument(target, initial);
+    // A share that re-used this window instead of loading a fresh page. (What the address of
+    // the launch that loaded the page says about a share was read when the page started.)
+    await collectShared(isInitialLaunch ? undefined : params.targetURL);
+    if (!target || isInitialLaunch) return;
+    // Shares are about their files, which travel through the stash.
+    if (isShareTargetUrl(target.href, env.scope)) return;
+    if (target.searchParams.get(SHARE_SOURCE_PARAM) === SHARE_SOURCE_VALUE) return;
+    pendingUrl = target;
+    flush();
   }
 
   function start(): void {
     if (started) return;
     started = true;
-    void collectShared();
+    void collectShared(env.currentUrl());
     // The browser keeps launches queued until a consumer is set, so nothing is lost by
     // attaching late; with `client_mode: focus-existing` it is called again for every re-launch.
     consumerSetAt = env.now();
@@ -192,6 +239,14 @@ export function createIncomingFiles(env: IncomingEnvironment): IncomingFiles {
       queueMicrotask(flush);
       return () => {
         if (urlHandler === handler) urlHandler = null;
+      };
+    },
+    onShareProblem(handler) {
+      problemHandler = handler;
+      start();
+      queueMicrotask(flush);
+      return () => {
+        if (problemHandler === handler) problemHandler = null;
       };
     },
   };
@@ -235,4 +290,13 @@ export function onIncomingFiles(
  */
 export function onLaunchUrl(handler: (url: URL) => void): () => void {
   return browserInstance()?.onLaunchUrl(handler) ?? (() => undefined);
+}
+
+/**
+ * Registers the single consumer for shares that did not arrive completely: the storage the
+ * files travel through was full or could not be used. The app has then been opened without
+ * them (or with only some of them) and should say so.
+ */
+export function onShareProblem(handler: (problem: ShareProblem) => void): () => void {
+  return browserInstance()?.onShareProblem(handler) ?? (() => undefined);
 }

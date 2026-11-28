@@ -2409,6 +2409,42 @@
     "expectWarnings": true
   },
   {
+    "file": "truncated-plain.pdf",
+    "description": "Unencrypted, cut off before the trailer (qpdf rebuilds table and trailer)",
+    "kind": "ok",
+    "tags": [
+      "plain",
+      "damaged"
+    ],
+    "userPassword": null,
+    "ownerPassword": null,
+    "userPasswordHex": null,
+    "ownerPasswordHex": null,
+    "wrongPassword": "not-the-password",
+    "size": 11737,
+    "sha256": "76cef64da0038e277253eb85c33f5c3689c01f389889486c75346efd6ec3b488",
+    "pdfVersion": "1.3",
+    "encrypted": false,
+    "opensWithoutPassword": true,
+    "encryption": null,
+    "pageCount": 4,
+    "linearized": false,
+    "pageContentSha256": [
+      "c6aa68031f1669930be807806356b352acf11257c0b65a595c4789a87f96fa59",
+      "374da9dfaee37f11dc4d7b2f54868f74fb8cd51e22646e218dc8e70470107f2b",
+      "f40e72b968b0630bb6f29d61eac768f17f9f4603b373d41aa731ad82c5ba6b82",
+      "435815ea3957aeb4361814da20bd5aace533b7fa77777683e26d1ad9fddc971a"
+    ],
+    "pageText": [
+      "PDF Key fixture plain page 1 of 4\ntoken 41aa01977cc7c80d",
+      "PDF Key fixture plain page 2 of 4\ntoken b1c072fe665c57ec",
+      "PDF Key fixture plain page 3 of 4\ntoken de007291c8360737",
+      "PDF Key fixture plain page 4 of 4\ntoken c621928a72f52bbd"
+    ],
+    "attachmentSha256": {},
+    "expectWarnings": true
+  },
+  {
     "file": "damaged-unrecoverable.pdf",
     "description": "A PDF cut off after 700 bytes: nothing to recover",
     "kind": "error",
@@ -2416,6 +2452,33 @@
     "password": "",
     "size": 700,
     "sha256": "819ffe6a5539fdafa11b953e4fd52f899f35a58fc5cc7da2586309f6124ef4fa"
+  },
+  {
+    "file": "truncated-r6.pdf",
+    "description": "AES-256 (R6), cut off at 90 %: no trailer left",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 7101,
+    "sha256": "5e351d88889279811993a5137437a2dda0d7aac2441cea31e1f5692cf20ec617"
+  },
+  {
+    "file": "truncated-r3.pdf",
+    "description": "RC4-128 (R3), cut off at 90 %: no trailer left",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 6213,
+    "sha256": "956e218f3b0687aa02197626902ea61f080e6e66843df3474c35e98279dd4e02"
+  },
+  {
+    "file": "truncated-early-r4.pdf",
+    "description": "AES-128 (R4), cut off at 50 %: no trailer, no encryption dictionary",
+    "kind": "error",
+    "error": "damaged",
+    "password": "user",
+    "size": 3795,
+    "sha256": "a97ce453a5ecd6e1d714d128e93cbba09cecde86ccbe4f423e5aa94efd7f9050"
   },
   {
     "file": "not-a-pdf.bin",

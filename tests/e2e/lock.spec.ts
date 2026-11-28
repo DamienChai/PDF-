@@ -6,6 +6,7 @@
 import { expect, test, type App, type SavedFile } from './support/app';
 import { fixture, lockedName, unlockedName } from './support/files';
 import { expectUnlockedCopy, inspectPdf, rawFacts } from './support/pdf';
+import { readZip } from './support/zip';
 import type { Permissions } from '../../src/engine/types';
 
 const EVERYTHING_ALLOWED: Permissions = {
@@ -44,9 +45,12 @@ test.describe('lock a file', () => {
     // The warning that cannot be missed: a forgotten password is gone for good.
     await expect(app.dock).toContainText(app.t('lock.warning'));
 
-    // Strength meter: a weak password is called weak, with a hint.
+    // Strength meter: a weak password is called weak, with a hint. A name with a year is one.
     await app.lockPassword.fill('1234');
     await expect(app.dock).toContainText(app.t('strength.0'));
+    await app.lockPassword.fill('Zhangwei1990');
+    await expect(app.dock).toContainText(app.t('strength.0'));
+    await expect(app.dock).toContainText(app.t('strength.hint.name-or-word'));
     await app.lockPassword.fill(password);
     await expect(app.dock).not.toContainText(app.t('strength.0'));
 
@@ -110,6 +114,48 @@ test.describe('lock a file', () => {
     // The suffix is swapped, not stacked.
     expect(unlocked.name).toBe(unlockedName(source.file));
     await expectUnlockedCopy(unlocked.bytes, source);
+  });
+
+  test('Enter in the password field goes on to the confirmation and reports nothing', async ({
+    app,
+  }) => {
+    const password = 'correct horse 42';
+    await startLocking(app, 'plain.pdf');
+    await expect(app.lockPassword).toHaveAttribute('enterkeyhint', 'next');
+    await app.lockPassword.fill(password);
+    await app.lockPassword.press('Enter');
+
+    // Not a submit attempt: nothing is missing yet, the confirmation simply comes next.
+    await expect(app.lockConfirmation).toBeFocused();
+    await expect(app.dock.getByRole('alert')).toHaveCount(0);
+    await app.expectState('plain.pdf', 'ready', 'lock');
+
+    // Typing it does not report a mismatch at every character on the way.
+    await app.lockConfirmation.pressSequentially(password.slice(0, -1));
+    await expect(app.dock.getByRole('alert')).toHaveCount(0);
+    await expect(app.lockConfirmation).toHaveAttribute('aria-invalid', 'false');
+    await app.lockConfirmation.pressSequentially(password.slice(-1));
+
+    // With the confirmation typed, Enter submits from either field.
+    await expect(app.lockPassword).toHaveAttribute('enterkeyhint', 'go');
+    await app.lockPassword.press('Enter');
+    await app.expectState('plain.pdf', 'done', 'lock');
+  });
+
+  test('Enter locks at once when the password is shown and needs no confirmation', async ({
+    app,
+  }) => {
+    await startLocking(app, 'plain.pdf');
+    // The toggle of the password field; the confirmation has one of its own.
+    await app.dock
+      .getByRole('button', { name: app.t('password.show'), exact: true })
+      .first()
+      .click();
+    await expect(app.lockConfirmation).toHaveCount(0);
+    await expect(app.lockPassword).toHaveAttribute('enterkeyhint', 'go');
+    await app.lockPassword.fill('shown while typing 7');
+    await app.lockPassword.press('Enter');
+    await app.expectState('plain.pdf', 'done', 'lock');
   });
 
   test('an empty form is refused with a message at the password field', async ({ app }) => {
@@ -246,7 +292,7 @@ test.describe('lock a file', () => {
     await expect(copying).toBeChecked();
     await copying.click();
     await expect(copying).not.toBeChecked();
-    await expect(app.advancedToggle).toContainText(app.t('lock.summary.restricted'));
+    await expect(app.advancedToggle).toContainText(app.listed('lock.summary.restricted'));
 
     const saved = await lockAndSave(app, source.file);
     const expected: Permissions = { ...EVERYTHING_ALLOWED, print: 'low', extract: false };
@@ -310,9 +356,146 @@ test.describe('lock a file', () => {
     await app.switchMode('unlock');
     await app.addFiles([saved.path]);
     await app.expectState(saved.name, 'restricted');
-    await expect(app.card(saved.name)).toContainText(app.t('restriction.print'));
-    await expect(app.card(saved.name)).toContainText(app.t('restriction.modify'));
+    await expect(app.card(saved.name)).toContainText(app.listed('restriction.print'));
+    await expect(app.card(saved.name)).toContainText(app.listed('restriction.modify'));
     await expect(app.dockButton('action.removeRestrictions')).toBeVisible();
+  });
+});
+
+test.describe('one password for every result in the list', () => {
+  const FIRST = 'first-password-11';
+  const SECOND = 'second-password-22';
+
+  /** The read-only field of the result panel: the password the results were made with. */
+  function appliedPassword(app: App) {
+    return app.page.locator('#lock-result-password');
+  }
+
+  async function fillForm(app: App, password: string): Promise<void> {
+    await app.lockPassword.fill(password);
+    await app.lockConfirmation.fill(password);
+  }
+
+  /** Every entry of the saved ZIP opens with `password` and not with `other`. */
+  async function expectAllOpenWith(
+    saved: SavedFile,
+    names: string[],
+    password: string,
+    other: string,
+  ) {
+    const entries = readZip(saved.bytes);
+    expect(entries.map((entry) => entry.name)).toEqual(names);
+    for (const entry of entries) {
+      expect(await inspectPdf(entry.data, password), entry.name).toMatchObject({ access: 'both' });
+      expect(await inspectPdf(entry.data, other), entry.name).toMatchObject({ access: 'locked' });
+    }
+  }
+
+  test('a file added after a run, with another password: the finished file is locked again', async ({
+    app,
+  }) => {
+    await startLocking(app, 'plain.pdf');
+    await fillForm(app, FIRST);
+    await app.lockConfirmation.press('Enter');
+    await app.expectState('plain.pdf', 'done', 'lock');
+    await expect(appliedPassword(app)).toHaveValue(FIRST);
+
+    // The form comes back with what was used; as it stands only the new file would be locked.
+    await app.addFixtures('objstm-plain.pdf');
+    await app.expectState('objstm-plain.pdf', 'ready', 'lock');
+    await expect(app.lockPassword).toHaveValue(FIRST);
+    await expect(app.dockButton('action.lock')).toBeVisible();
+
+    // Another password concerns the finished file too, and the button says so.
+    await fillForm(app, SECOND);
+    await expect(app.dockButton('action.lockCount', { count: 2 })).toBeVisible();
+    await expect(app.page.locator('.listhead__summary')).toContainText(
+      app.t('list.summary.relock', { count: 1 }),
+    );
+    await app.press(app.dockButton('action.lockCount', { count: 2 }));
+    await app.expectState('plain.pdf', 'done', 'lock');
+    await app.expectState('objstm-plain.pdf', 'done', 'lock');
+    await expect(app.dock).toContainText(app.t('status.locked', { count: 2 }));
+
+    // One password is shown, and it opens both files.
+    await expect(appliedPassword(app)).toHaveValue(SECOND);
+    await expectAllOpenWith(
+      await app.saveAll(),
+      ['plain_locked.pdf', 'objstm-plain_locked.pdf'],
+      SECOND,
+      FIRST,
+    );
+  });
+
+  test('a file added after a run, same password: the finished file is left alone', async ({
+    app,
+  }) => {
+    await startLocking(app, 'plain.pdf');
+    await fillForm(app, FIRST);
+    await app.lockConfirmation.press('Enter');
+    await app.expectState('plain.pdf', 'done', 'lock');
+    await app.saveAll();
+    await expect(app.card('plain.pdf')).toContainText(app.t('entry.saved'));
+
+    await app.addFixtures('objstm-plain.pdf');
+    await app.expectState('objstm-plain.pdf', 'ready', 'lock');
+    await app.press(app.dockButton('action.lock'));
+    await app.expectState('objstm-plain.pdf', 'done', 'lock');
+    // Still the result that was saved: it was not made again.
+    await expect(app.card('plain.pdf')).toContainText(app.t('entry.saved'));
+    await expect(appliedPassword(app)).toHaveValue(FIRST);
+    await expectAllOpenWith(
+      await app.saveAll(),
+      ['plain_locked.pdf', 'objstm-plain_locked.pdf'],
+      FIRST,
+      SECOND,
+    );
+  });
+
+  test('a protected file that waited for its current password, another password meanwhile', async ({
+    app,
+  }) => {
+    const waiting = fixture('aes-256-r6.pdf');
+    await startLocking(app, 'plain.pdf', waiting.file);
+    await fillForm(app, FIRST);
+    await app.lockConfirmation.press('Enter');
+    await app.expectState('plain.pdf', 'done', 'lock');
+    await app.expectState(waiting.file, 'encrypted', 'lock');
+
+    await fillForm(app, SECOND);
+    await app.cardField(waiting.file).fill(waiting.userPassword!);
+    await app.press(app.dockButton('action.lockCount', { count: 2 }));
+    await app.expectState('plain.pdf', 'done', 'lock');
+    await app.expectState(waiting.file, 'done', 'lock');
+
+    await expect(appliedPassword(app)).toHaveValue(SECOND);
+    await expectAllOpenWith(
+      await app.saveAll(),
+      ['plain_locked.pdf', lockedName(waiting.file)],
+      SECOND,
+      FIRST,
+    );
+  });
+
+  test('removing every file by hand leaves no password behind', async ({ app }) => {
+    await startLocking(app, 'plain.pdf', 'objstm-plain.pdf');
+    await app.dock.getByRole('button', { name: app.t('lock.generate'), exact: true }).click();
+    const generated = await app.lockPassword.inputValue();
+    await app.press(app.dockButton('action.lockCount', { count: 2 }));
+    await app.expectState('objstm-plain.pdf', 'done', 'lock');
+    await expect(appliedPassword(app)).toHaveValue(generated);
+
+    await app.menuCommand('plain.pdf', 'entry.menu.remove');
+    await app.menuCommand('objstm-plain.pdf', 'entry.menu.remove');
+    await expect(app.chooseButton).toBeVisible();
+
+    // The next file meets an empty form, hidden again, that asks for a confirmation.
+    await app.addFixtures('crlf-plain.pdf');
+    await app.expectState('crlf-plain.pdf', 'ready', 'lock');
+    await expect(app.lockPassword).toHaveValue('');
+    await expect(app.lockPassword).toHaveAttribute('type', 'password');
+    await expect(app.lockConfirmation).toHaveValue('');
+    expect(await app.page.content()).not.toContain(generated);
   });
 });
 

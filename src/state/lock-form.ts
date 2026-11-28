@@ -8,7 +8,7 @@
  * permissions.
  */
 import { computed, signal, type ReadonlySignal } from '@preact/signals';
-import { checkNewPasswords } from '../engine/passwords';
+import { checkNewPasswords, sameNewPassword } from '../engine/passwords';
 import { ALL_PERMISSIONS, type EncryptOptions, type PrintPermission } from '../engine/types';
 import {
   algorithmChipLabel,
@@ -76,6 +76,11 @@ export interface LockForm {
   // --- derived ---
   /** Show the confirmation field. */
   readonly confirmationNeeded: ReadonlySignal<boolean>;
+  /**
+   * What Enter does in the main password field: `next` moves on to the confirmation, which is
+   * still to be typed; `go` submits.
+   */
+  readonly passwordEnter: ReadonlySignal<'next' | 'go'>;
   /** The main password came from the generator and was not edited since: offer "copy". */
   readonly generated: ReadonlySignal<boolean>;
   readonly strength: ReadonlySignal<StrengthView>;
@@ -94,6 +99,8 @@ export interface LockForm {
   readonly errors: ReadonlySignal<LockFormErrors>;
   /** No problems: `submit()` would succeed. */
   readonly valid: ReadonlySignal<boolean>;
+  /** The current values as engine options, valid or not. */
+  readonly options: ReadonlySignal<EncryptOptions>;
 
   // --- editing ---
   setPassword(value: string): void;
@@ -117,9 +124,11 @@ export interface LockForm {
    * from a click handler.
    */
   copyPassword(field?: 'password' | 'ownerPassword'): Promise<boolean>;
+  /** The same for a password that is not (or no longer) in the form. */
+  copyText(value: string): Promise<boolean>;
   /** Validates. On failure every problem becomes visible until it is fixed. */
   submit(): LockSubmitResult;
-  /** The current values as engine options, without validating. */
+  /** `options` at this moment, without validating. */
   toEncryptOptions(): EncryptOptions;
   /** Forgets every password; keeps algorithm, permissions and switches. */
   clearSecrets(): void;
@@ -157,6 +166,35 @@ function browserClipboard(): Pick<Clipboard, 'writeText'> | undefined {
   return typeof navigator === 'undefined' ? undefined : navigator.clipboard;
 }
 
+/**
+ * What a set of options amounts to, for a single line: the algorithm, then whatever differs from
+ * the defaults ("AES-256 · Restricted"). `separateOwner` says whether a permissions password of
+ * its own is in use; in submitted options that is the case exactly when there is one.
+ */
+export function lockSettingsSummary(
+  options: EncryptOptions,
+  separateOwner: boolean = options.ownerPassword !== '',
+): MessageList {
+  const list: Message[] = [
+    algorithmChipLabel({
+      algorithm: options.algorithm,
+      keyBits: options.algorithm === 'aes-256' ? 256 : 128,
+    }),
+  ];
+  if (separateOwner) {
+    const allowed = options.permissions;
+    const restricted =
+      allowed.print !== 'full' ||
+      !allowed.extract ||
+      !allowed.modify ||
+      !allowed.annotate ||
+      !allowed.assemble;
+    list.push({ key: restricted ? 'lock.summary.restricted' : 'lock.summary.ownerPassword' });
+  }
+  if (!options.encryptMetadata) list.push({ key: 'lock.summary.metadataClear' });
+  return { list };
+}
+
 /** The engine's verdict on one new password, as a message; null if it can be used. */
 function encodingProblem(password: string, algorithm: LockAlgorithm): Message | null {
   if (password === '') return null;
@@ -192,6 +230,9 @@ export function createLockForm(env: LockFormEnvironment = {}): LockForm {
   const touched = signal<ReadonlySet<LockField>>(new Set());
 
   const confirmationNeeded = computed(() => !revealed.value);
+  const passwordEnter = computed<'next' | 'go'>(() =>
+    confirmationNeeded.value && confirmation.value === '' ? 'next' : 'go',
+  );
 
   const strength = computed<StrengthView>(() => {
     const estimate = estimateStrength(password.value);
@@ -220,8 +261,11 @@ export function createLockForm(env: LockFormEnvironment = {}): LockForm {
     let ownerProblem: Message | null = null;
     if (separateOwner.value) {
       if (owner === '') ownerProblem = { key: 'lock.error.ownerRequired' };
-      else if (owner === main) ownerProblem = { key: 'lock.error.ownerSame' };
-      else ownerProblem = encodingProblem(owner, algorithm.value);
+      // Compared as the engine would write them: text that looks different can be one password
+      // (full-width and ordinary digits under AES-256), and the restrictions would guard nothing.
+      else if (sameNewPassword(owner, main, algorithm.value)) {
+        ownerProblem = { key: 'lock.error.ownerSame' };
+      } else ownerProblem = encodingProblem(owner, algorithm.value);
     }
 
     return {
@@ -258,26 +302,34 @@ export function createLockForm(env: LockFormEnvironment = {}): LockForm {
     separateOwner.value && password.value === '' ? { key: 'lock.password.openOptional' } : null,
   );
 
-  const advancedSummary = computed<MessageList>(() => {
-    const list: Message[] = [
-      algorithmChipLabel({
-        algorithm: algorithm.value,
-        keyBits: algorithm.value === 'aes-256' ? 256 : 128,
-      }),
-    ];
-    if (separateOwner.value) {
-      const chosen = permissions.value;
-      const restricted =
-        chosen.print !== 'full' ||
-        !chosen.extract ||
-        !chosen.modify ||
-        !chosen.annotate ||
-        !chosen.assemble;
-      list.push({ key: restricted ? 'lock.summary.restricted' : 'lock.summary.ownerPassword' });
-    }
-    if (!encryptMetadata.value) list.push({ key: 'lock.summary.metadataClear' });
-    return { list };
+  const options = computed<EncryptOptions>(() => {
+    const chosen = permissions.value;
+    const separate = separateOwner.value;
+    return {
+      algorithm: algorithm.value,
+      userPassword: password.value,
+      // '' tells the engine to use the one password for both roles.
+      ownerPassword: separate ? ownerPassword.value : '',
+      // Restrictions need a second password to mean anything: whoever has the only password
+      // has full access anyway.
+      permissions: separate
+        ? {
+            print: chosen.print,
+            modify: chosen.modify,
+            extract: chosen.extract,
+            annotate: chosen.annotate,
+            fillForms: chosen.annotate,
+            assemble: chosen.assemble,
+            accessibility: true,
+          }
+        : { ...ALL_PERMISSIONS },
+      encryptMetadata: encryptMetadata.value,
+    };
   });
+
+  const advancedSummary = computed<MessageList>(() =>
+    lockSettingsSummary(options.value, separateOwner.value),
+  );
 
   function untouch(field: LockField): void {
     if (!touched.peek().has(field)) return;
@@ -298,28 +350,22 @@ export function createLockForm(env: LockFormEnvironment = {}): LockForm {
   }
 
   function toEncryptOptions(): EncryptOptions {
-    const chosen = permissions.peek();
-    const separate = separateOwner.peek();
-    return {
-      algorithm: algorithm.peek(),
-      userPassword: password.peek(),
-      // '' tells the engine to use the one password for both roles.
-      ownerPassword: separate ? ownerPassword.peek() : '',
-      // Restrictions need a second password to mean anything: whoever has the only password
-      // has full access anyway.
-      permissions: separate
-        ? {
-            print: chosen.print,
-            modify: chosen.modify,
-            extract: chosen.extract,
-            annotate: chosen.annotate,
-            fillForms: chosen.annotate,
-            assemble: chosen.assemble,
-            accessibility: true,
-          }
-        : { ...ALL_PERMISSIONS },
-      encryptMetadata: encryptMetadata.peek(),
-    };
+    return options.peek();
+  }
+
+  async function copyText(value: string): Promise<boolean> {
+    if (value === '') return false;
+    try {
+      const clipboard = (env.clipboard ?? browserClipboard)();
+      if (!clipboard) throw new Error('clipboard unavailable');
+      // Called before the first await: the clipboard needs the user activation of the click.
+      await clipboard.writeText(value);
+      toasts.show({ key: 'toast.passwordCopied' }, { tone: 'success' });
+      return true;
+    } catch {
+      toasts.show({ key: 'toast.copyFailed' }, { tone: 'error' });
+      return false;
+    }
   }
 
   return {
@@ -334,6 +380,7 @@ export function createLockForm(env: LockFormEnvironment = {}): LockForm {
     encryptMetadata,
     advancedOpen,
     confirmationNeeded,
+    passwordEnter,
     generated,
     strength,
     passwordLabel,
@@ -342,6 +389,7 @@ export function createLockForm(env: LockFormEnvironment = {}): LockForm {
     problems,
     errors,
     valid,
+    options,
 
     setPassword(value) {
       if (value === password.peek()) return;
@@ -403,21 +451,10 @@ export function createLockForm(env: LockFormEnvironment = {}): LockForm {
       return value;
     },
 
-    async copyPassword(field = 'password') {
-      const value = field === 'ownerPassword' ? ownerPassword.peek() : password.peek();
-      if (value === '') return false;
-      try {
-        const clipboard = (env.clipboard ?? browserClipboard)();
-        if (!clipboard) throw new Error('clipboard unavailable');
-        // Called before the first await: the clipboard needs the user activation of the click.
-        await clipboard.writeText(value);
-        toasts.show({ key: 'toast.passwordCopied' }, { tone: 'success' });
-        return true;
-      } catch {
-        toasts.show({ key: 'toast.copyFailed' }, { tone: 'error' });
-        return false;
-      }
+    copyPassword(field = 'password') {
+      return copyText(field === 'ownerPassword' ? ownerPassword.peek() : password.peek());
     },
+    copyText,
 
     submit() {
       const current = problems.peek();

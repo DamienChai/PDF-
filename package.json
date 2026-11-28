@@ -2,6 +2,7 @@
   "name": "pdf-key",
   "private": true,
   "version": "1.0.0",
+  "license": "SEE LICENSE IN LICENSE",
   "description": "Unlock and lock PDF files locally on your device. Installable PWA for Android, macOS and Windows.",
   "type": "module",
   "scripts": {

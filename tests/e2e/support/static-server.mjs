@@ -26,6 +26,7 @@ const TYPES = {
   '.png': 'image/png',
   '.webmanifest': 'application/manifest+json',
   '.json': 'application/json',
+  '.txt': 'text/plain; charset=utf-8',
 };
 
 const server = createServer(async (request, response) => {

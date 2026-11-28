@@ -54,6 +54,7 @@ function segments(summary: Summary): Segment[] {
     list.push({ text: count('list.summary.notEncrypted', summary.notEncrypted) });
   }
   if (summary.done > 0) list.push({ text: count('list.summary.done', summary.done) });
+  if (summary.relock > 0) list.push({ text: count('list.summary.relock', summary.relock) });
   return list;
 }
 
@@ -95,9 +96,10 @@ function ListHeader({ summary }: { summary: Summary }) {
       </div>
       {parts.length > 0 && (
         <p class="listhead__summary">
-          {parts.map((part, index) => (
+          {/* Each count with the dot that follows it is one unbreakable piece: where the line is
+              too short it ends after a count, never inside one. */}
+          {parts.flatMap((part, index) => [
             <span class="listhead__part" key={part.text.key}>
-              {index > 0 && <span aria-hidden="true"> · </span>}
               {part.jump ? (
                 <button
                   type="button"
@@ -110,8 +112,10 @@ function ListHeader({ summary }: { summary: Summary }) {
               ) : (
                 t(part.text)
               )}
-            </span>
-          ))}
+              {index < parts.length - 1 && <span aria-hidden="true"> ·</span>}
+            </span>,
+            ' ',
+          ])}
         </p>
       )}
     </header>

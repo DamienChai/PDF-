@@ -10,7 +10,7 @@
   },
   "compileFlags": ["-O3","-fwasm-exceptions","-sSUPPORT_LONGJMP=wasm","-DNDEBUG"],
   "linkFlags": ["-sMODULARIZE=1","-sEXPORT_ES6=1","-sEXPORT_NAME=createPdfx","-sENVIRONMENT=web,worker","-sFILESYSTEM=0","-sALLOW_MEMORY_GROWTH=1","-sMAXIMUM_MEMORY=4GB","-sINITIAL_MEMORY=32MB","-sSTACK_SIZE=8MB","-sABORTING_MALLOC=0","-sMALLOC=dlmalloc","-sTEXTDECODER=2","-sDYNAMIC_EXECUTION=0","-sINCOMING_MODULE_JS_API=instantiateWasm","-sEXPORTED_FUNCTIONS=_pdfx_inspect,_pdfx_process,_pdfx_free,_pdfx_version,_malloc,_free","-sEXPORTED_RUNTIME_METHODS=HEAPU8","--no-entry"],
-  "wasmBytes": 1035169,
-  "wasmSha256": "1710a69ecf5cb30896acaa548807312a794ec371149d70c8005a37c2a25ef20d",
-  "glueSha256": "a4e4d8ba43cc5dada87a9523cdceb72a371b27f6e7909c6eb3380f10fafc8f0d"
+  "wasmBytes": 1041015,
+  "wasmSha256": "ebd6b3d2b9e74af66de3b9ef5364fd2b8b7a7a6f55dc80dc0517b3c17f974e02",
+  "glueSha256": "e427a119db39f53529e10f101d8b7da6475fa7be037159080e1aa0442d5bd562"
 }

@@ -28,6 +28,10 @@ Small PDFs for `src/engine/*.test.ts`, described by `manifest.json`.
   ReportLab (RC4-40, RC4-128, ASCII85 + Flate content streams).
 - Damaged: wrong `startxref` (recoverable, plain and encrypted); cut off after 700 bytes (not
   recoverable).
+- Cut off before the trailer: unencrypted at 97 % (`truncated-plain.pdf`, repaired); AES-256 R6
+  at 90 % (half of the encryption dictionary left), RC4-128 at 90 % and AES-128 at 50 % (no
+  encryption dictionary left either): `truncated-r6.pdf`, `truncated-r3.pdf`,
+  `truncated-early-r4.pdf` must be refused as `damaged`, never taken for unencrypted files.
 - Not PDFs: binary and text.
 - Unsupported: certificate security handler (`/Adobe.PubSec`), unknown revision (R7/V6).
 
@@ -50,7 +54,7 @@ python3 tests/fixtures/cross_check.py            # runs the engine, then validat
 python3 tests/fixtures/cross_check.py --out DIR  # keep the engine outputs
 ```
 
-Last run (pikepdf 10.18.2 with qpdf 12.4.2, pypdf 6.17.0): 222 outputs from 47 fixtures, all
+Last run (pikepdf 10.18.2 with qpdf 12.4.2, pypdf 6.17.0): 224 outputs from 48 fixtures, all
 accepted by pikepdf and pypdf; all 121 decrypted outputs byte-identical to native qpdf performing
-the same operation (ignoring the time-based `/ID`), all 101 encrypted outputs object-identical
+the same operation (ignoring the time-based `/ID`), all 103 encrypted outputs object-identical
 after decryption.

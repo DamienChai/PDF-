@@ -82,6 +82,14 @@ export class App {
     return translate(this.lang, key, params);
   }
 
+  /**
+   * A message as it reads as an item of a list ("No printing, no copying"): in English only the
+   * first item of a list keeps its capital.
+   */
+  listed(key: MessageKey, params?: MessageParams): RegExp {
+    return new RegExp(escapeRegExp(this.t(key, params)), 'i');
+  }
+
   /** A message in either language: for elements whose language a test does not care about. */
   private either(key: MessageKey, params?: MessageParams): RegExp {
     const texts = [translate('zh-CN', key, params), translate('en', key, params)];
@@ -451,10 +459,11 @@ async function watch(context: BrowserContext, origin: string): Promise<string[]>
 
 export interface Options {
   /**
-   * `none` (default): the browser has no "save as" and folder pickers, like Chrome on Android,
-   * Firefox and Safari; results are downloaded. `opfs`: `showSaveFilePicker` and
-   * `showDirectoryPicker` exist (desktop Chrome and Edge) and "choose" a file or folder in the
-   * origin-private file system, because nothing can drive the real system dialogs.
+   * `none` (default): the browser has no "save as" and folder pickers, like Firefox, Safari and
+   * Chrome on Android before version 132; results are downloaded. `opfs`: `showSaveFilePicker`
+   * and `showDirectoryPicker` exist (Chrome and Edge on desktop, Chrome on Android from 132) and
+   * "choose" a file or folder in the origin-private file system, because nothing can drive the
+   * real system dialogs.
    */
   filePickers: 'none' | 'opfs';
 }

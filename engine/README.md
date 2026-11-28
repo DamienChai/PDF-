@@ -78,6 +78,28 @@ cross-reference table, but when the catalog lives in an object stream it fails a
 decrypt that stream with the dummy key (`unable to find page tree`) and the parameters have to be
 read from a failed instance anyway — at the cost of a second parse. Both were tried on R2–R6.
 
+### A file that lost its trailer
+
+The trailer is the only place that says a file is encrypted. When it is gone (a download that
+stopped early, a mangled `trailer` keyword), qpdf rebuilds one around the catalog it finds, without
+`/Encrypt`: an encrypted file would come back as an unencrypted one whose strings and streams are
+still ciphertext, and encrypting it again would bury that ciphertext for good. So when qpdf reports
+`unable to find trailer dictionary while recovering damaged file` and the document looks
+unencrypted, `openDocument` reads the raw input once more (`TraceScanner`: one sequential pass in
+1 MiB windows through the block cache, memory independent of the file size) and fails with
+`damaged` if it finds
+
+- an `/Encrypt` entry,
+- an encryption dictionary (`/Filter /Standard` in an object that also has `/O` and `/U`), or
+- a stream whose first bytes cannot be what its first filter produces: no zlib header under
+  `/FlateDecode`, no JPEG or JPEG 2000 signature, bytes that are not text under an ASCII filter
+  or in a stream whose dictionary has nothing but `/Length` (a content stream).
+
+The last one matters most: writers put the encryption dictionary at the end, so a cut usually
+takes it along with the trailer, and ciphertext is all that gives the file away. An unencrypted
+file with the same damage shows none of the three and is repaired as before; its made-up trailer
+gets a `/Size` entry before writing, which `QPDFWriter` would otherwise leave out.
+
 ### Passwords
 
 A PDF password is a byte string. `src/engine/passwords.ts` turns typed text into candidates:
@@ -140,7 +162,8 @@ committed. `.github/workflows/engine.yml` (manual trigger) rebuilds inside
 | `-O3 -flto`     |   1 179 948 | 407 090 | 4.4–4.5 s |
 
 LTO costs 14 % in size and gains nothing; `-Os` saves 57 KB over the wire for about 10 % of the
-throughput. Shipped: 1 035 169 bytes raw, 373 953 gzip, 288 439 brotli; glue 9 623 bytes
+throughput. The table was measured before the lost-trailer check existed, which added 5 846
+bytes. Shipped now: 1 041 015 bytes raw, 377 725 gzip, 290 667 brotli; glue 9 623 bytes
 (3 517 gzip).
 
 Where the time goes (profile of the 500 MB decrypt): 67 % in qpdf's table-based AES, 21 % in
@@ -150,8 +173,8 @@ elsewhere. A faster AES would need a SIMD implementation registered as a qpdf cr
 ## Checks
 
 ```sh
-npx vitest run src/engine                  # 650 tests, about 15 s
-python3 tests/fixtures/cross_check.py      # pikepdf + pypdf + native qpdf on 222 engine outputs
+npx vitest run src/engine                  # 718 tests, about 15 s
+python3 tests/fixtures/cross_check.py      # pikepdf + pypdf + native qpdf on 224 engine outputs
 node engine/browser-check/check.mjs        # 42 checks in Chromium
 node engine/bench.mjs                      # 100 MB and 500 MB
 ```
@@ -161,7 +184,8 @@ node engine/bench.mjs                      # 100 MB and 500 MB
   AES-256 and AES-128 and decrypted again, comparing the decoded page content and attachments with
   hashes recorded by pikepdf. Plus: every error fixture, output options, permission round trips,
   password rules (including the RFC 4013 examples and 314 SASLprep vectors generated from Python's
-  RFC 3454 tables), the block cache with 64-byte blocks and four slots on every fixture, a read
+  RFC 3454 tables), every encrypted fixture cut off at six lengths (never taken for an unencrypted
+  file) and every unencrypted one cut off at 35 (still repaired), the block cache with 64-byte blocks and four slots on every fixture, a read
   failure injected at every single read, failing sinks, mutated inputs, heap stability, and the
   worker pool with scripted and in-process workers.
 - **Fixtures**: `tests/fixtures/generate.py` (see `tests/fixtures/README.md`).
@@ -217,4 +241,10 @@ connect-src 'self'`. Without `'wasm-unsafe-eval'` every call rejects with `engin
   says 40. `keyBits` reports what qpdf uses.
 - Only the standard password security handler is supported; certificate-encrypted documents are
   reported as `unsupported-encryption`.
+- An encrypted file that is cut off before its first stream begins (the first few hundred bytes
+  to few kilobytes: catalog and page dictionaries only) carries no trace of encryption and is
+  rebuilt like an unencrypted file cut at the same place: empty pages, no ciphertext.
+- The lost-trailer check errs on the side of refusing: an unencrypted file that lost its trailer
+  and embeds an encrypted PDF without compression, or carries the name `/Encrypt` in clear text,
+  is reported as `damaged`.
 - A zero byte cannot be part of a password (qpdf's API takes C strings).

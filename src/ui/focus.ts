@@ -10,9 +10,21 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+/**
+ * Inside a `<details>` that is closed. Its content cannot take the focus, yet some browsers
+ * lay it out all the same (Chromium), so its boxes say nothing.
+ */
+function isFoldedAway(element: HTMLElement): boolean {
+  const parent = element.parentElement;
+  // The summary is what stays visible of its own <details>; what counts for it is further up.
+  const from =
+    element.tagName === 'SUMMARY' && parent?.tagName === 'DETAILS' ? parent.parentElement : element;
+  return from !== null && from.closest('details:not([open])') !== null;
+}
+
 export function focusableWithin(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-    (element) => element.getClientRects().length > 0,
+    (element) => element.getClientRects().length > 0 && !isFoldedAway(element),
   );
 }
 

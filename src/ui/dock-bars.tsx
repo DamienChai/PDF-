@@ -83,6 +83,7 @@ export function UnlockBar({ summary, guard }: BarProps) {
           invalid={error !== null}
           describedBy={error ? 'unlock-retry-hint' : undefined}
         />
+        {/* The inspector's progress bar; on the phone the bar's top edge shows it (dock.tsx). */}
         {processing && <OverallProgress class="dock__inline-progress" />}
         {error && (
           <p class="hint dock__help" id="unlock-retry-hint">

@@ -6,13 +6,15 @@
  * The fixture of every test already fails on console errors and warnings, CSP violations, failed
  * requests and requests to other origins; here those rules meet the service worker.
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Page } from '@playwright/test';
-import { expect, test, type App } from './support/app';
-import { fixture, fixturePath, unlockedName } from './support/files';
-import { expectUnlockedCopy } from './support/pdf';
+import type { BrowserContext, Page } from '@playwright/test';
+import { App, expect, test } from './support/app';
+import { LARGE_PDF, fixture, fixturePath, unlockedName } from './support/files';
+import { streamHashes } from '../../src/engine/test-support';
+import { buildLargePdf } from './support/large-pdf';
+import { encryptPdf, expectUnlockedCopy, inspectPdf } from './support/pdf';
 import { SUBPATH, SUBPATH_URL, SW_VERSION_COOKIE } from './support/servers';
 
 const DIST = fileURLToPath(new URL('../../dist/', import.meta.url));
@@ -85,6 +87,31 @@ async function share(page: Page, paths: readonly string[]): Promise<void> {
   );
   await page.locator('#e2e-share input').setInputFiles([...paths]);
   await page.evaluate(() => (document.getElementById('e2e-share') as HTMLFormElement).submit());
+}
+
+/**
+ * Publishes a new version of the site, for this browser only (see static-server.mjs), and waits
+ * until the browser has installed it next to the running one.
+ */
+async function publish(page: Page, context: BrowserContext, version: string): Promise<void> {
+  await context.addCookies([{ name: SW_VERSION_COOKIE, value: version, url: SUBPATH_URL }]);
+  await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.ready;
+    await registration.update();
+    const installing = registration.installing;
+    if (installing && !registration.waiting) {
+      await new Promise<void>((resolve) => {
+        installing.addEventListener('statechange', () => {
+          if (installing.state === 'installed') resolve();
+        });
+      });
+    }
+  });
+}
+
+/** A new version is installed and waits for the running one to let go. */
+async function updateWaiting(page: Page): Promise<boolean> {
+  return page.evaluate(async () => (await navigator.serviceWorker.ready).waiting !== null);
 }
 
 async function unlockAndVerify(app: App, file: string): Promise<void> {
@@ -307,6 +334,60 @@ test.describe('service worker', () => {
     expect(await page.evaluate(() => navigator.onLine)).toBe(false);
   });
 
+  test('the licence notices are part of the app and open offline', async ({
+    app,
+    page,
+    context,
+  }) => {
+    await install(app);
+    await context.setOffline(true);
+    await app.addFixtures('aes-256-r6.pdf');
+    await app.expectState('aes-256-r6.pdf', 'needs-password');
+
+    const settings = await app.openSettings();
+    await settings.getByText(app.t('about.licenses'), { exact: true }).click();
+    await expect(settings).toContainText(app.t('about.licenses.ijg'));
+    await expect(settings).toContainText('qpdf 12.4.2');
+    for (const name of ['musl libc', 'dlmalloc', 'Preact', 'Workbox']) {
+      await expect(settings.getByText(name, { exact: true })).toBeVisible();
+    }
+    const link = settings.getByRole('link', {
+      name: app.t('about.licenses.notices'),
+      exact: true,
+    });
+    await link.scrollIntoViewIfNeeded();
+    if (app.phone) {
+      // A finger-sized target around the text.
+      const target = await link.evaluate((element) => {
+        const hit = getComputedStyle(element, '::after');
+        return { width: parseFloat(hit.width), height: parseFloat(hit.height) };
+      });
+      expect(target.width).toBeGreaterThanOrEqual(48);
+      expect(target.height).toBeGreaterThanOrEqual(48);
+    }
+
+    // A window of its own: the list of files in the app stays as it is.
+    const opened = page.waitForEvent('popup');
+    await link.click();
+    const notices = await opened;
+    await notices.waitForLoadState();
+    expect(notices.url()).toBe(new URL('./licenses.txt', page.url()).href);
+    const text = await notices.locator('body').innerText();
+    expect(text).toMatch(/^PDF Key \d+\.\d+\.\d+: third-party notices\n/);
+    for (const part of [
+      'This software is based in part on the work of the Independent JPEG Group.',
+      'qpdf 12.4.2',
+      'TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION',
+      'Copyright © 2005-2020 Rich Felker, et al.',
+      'Copyright (c) 2015-present Jason Miller',
+      'Copyright 2018 Google LLC',
+    ]) {
+      expect(text, part).toContain(part);
+    }
+    await notices.close();
+    await app.expectState('aes-256-r6.pdf', 'needs-password');
+  });
+
   test('files shared from another app arrive in the list', async ({ app, page }) => {
     await install(app);
     await share(page, [fixturePath('aes-256-r6.pdf'), fixturePath('owner-only-r6.pdf')]);
@@ -334,6 +415,93 @@ test.describe('service worker', () => {
     await page.reload();
     await app.ready();
     await expect(app.cards).toHaveCount(0);
+  });
+
+  test('shared files of any size arrive whole, also beyond what one cache entry holds', async ({
+    app,
+    page,
+  }, testInfo) => {
+    // Sharing is what the phone does; once is enough for files of this size.
+    test.skip(!app.phone, 'the share sheet is a phone gesture');
+    test.setTimeout(180_000);
+    const megabyte = 1024 * 1024;
+    // The worker parks shared files in slices of 64 MiB (src/pwa/share-stash.ts). This one
+    // needs two, and is compared bit for bit after unlocking…
+    const pages = 66;
+    const plain = buildLargePdf(pages, megabyte);
+    const sliced = testInfo.outputPath('scan-66mb.pdf');
+    writeFileSync(sliced, await encryptPdf(plain, 'shared-large'));
+    // …and this one is larger than Chromium lets a single cache entry be (256 MiB).
+    const huge = testInfo.outputPath('archive-258mb.pdf');
+    writeFileSync(huge, buildLargePdf(258, megabyte));
+
+    await install(app);
+    await share(page, [sliced, huge]);
+    await app.ready();
+    await expect(app.cards).toHaveCount(2, { timeout: 60_000 });
+    await app.analysed(2);
+    await app.expectState('scan-66mb.pdf', 'needs-password');
+    // Read from its first object to the cross-reference table at its very end.
+    await app.expectState('archive-258mb.pdf', 'not-encrypted');
+    await expect(app.card('archive-258mb.pdf')).toContainText(/258(\.\d+)? MB/);
+    await expect(app.toasts).not.toContainText(app.t('toast.shareLost'));
+
+    await app.unlockWith('shared-large');
+    await app.expectState('scan-66mb.pdf', 'done');
+    const saved = await app.saveAll();
+    expect(await inspectPdf(saved.bytes)).toMatchObject({
+      encrypted: false,
+      pageCount: pages,
+      warnings: [],
+    });
+    // Every image of the original is in the result: no slice was lost, repeated or misplaced.
+    const original = streamHashes(plain);
+    const produced = streamHashes(saved.bytes);
+    expect(original.size).toBeGreaterThanOrEqual(pages);
+    expect([...original].filter((hash) => !produced.has(hash))).toEqual([]);
+    // Nothing is left behind in the hand-over cache.
+    expect(
+      await page.evaluate(async () => {
+        const names = (await caches.keys()).filter((name) => name.includes('incoming'));
+        const counts = await Promise.all(
+          names.map(async (name) => (await (await caches.open(name)).keys()).length),
+        );
+        return counts.reduce((sum, count) => sum + count, 0);
+      }),
+    ).toBe(0);
+  });
+
+  test('a share that cannot be kept opens the app with a message, not an empty screen', async ({
+    app,
+    page,
+    context,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'the storage quota is set through the DevTools protocol');
+    await install(app);
+    // The device has run out of space: what the app has stored so far is all it gets.
+    const session = await context.newCDPSession(page);
+    const origin = new URL(page.url()).origin;
+    const { usage } = await session.send('Storage.getUsageAndQuota', { origin });
+    await session.send('Storage.overrideQuotaForOrigin', { origin, quotaSize: Math.ceil(usage) });
+
+    await share(page, [LARGE_PDF.path]);
+    await app.ready();
+    await app.expectToast('toast.shareLost');
+    await expect(app.cards).toHaveCount(0);
+    await expect(app.chooseButton).toBeVisible();
+    // A clean address: a reload starts the app as usual, without the message.
+    expect(new URL(page.url()).search).toBe('');
+    await page.reload();
+    await app.ready();
+    await expect(app.toasts).not.toContainText(app.t('toast.shareLost'));
+
+    // With room again, sharing works again.
+    await session.send('Storage.overrideQuotaForOrigin', { origin });
+    await share(page, [fixturePath('plain.pdf')]);
+    await app.ready();
+    await app.analysed(1);
+    await app.expectState('plain.pdf', 'not-encrypted');
   });
 
   test('a share while offline works too, and a shared non-PDF is turned away', async ({
@@ -453,5 +621,111 @@ test.describe('under a sub-path, as on GitHub Pages', () => {
     expect(active).toEqual({ waiting: false, version: '2' });
     await expect(app.toasts).not.toContainText(app.t('toast.update'));
     await expect(app.chooseButton).toBeVisible();
+  });
+
+  test('a new version waits while files are processed and until the results are saved', async ({
+    app,
+    page,
+    context,
+  }) => {
+    test.setTimeout(90_000);
+    const update = app.toasts.getByText(app.t('toast.update'), { exact: true });
+    await install(app);
+    await app.toasts.getByRole('button', { name: app.t('toast.dismiss'), exact: true }).click();
+    await app.addFixtures('aes-256-r6.pdf');
+    await app.expectState('aes-256-r6.pdf', 'needs-password');
+    await app.unlockWith('user');
+    await app.expectState('aes-256-r6.pdf', 'done');
+
+    // A result nobody has saved yet: the new version is there, and the app keeps it to itself.
+    await publish(page, context, 'waits');
+    expect(await updateWaiting(page)).toBe(true);
+    await expect(update).toHaveCount(0);
+
+    // Saved: now a reload costs nothing, and the offer is made.
+    await app.saveAll();
+    await expect(update).toBeVisible();
+
+    // More work: the offer is withdrawn while the file is processed and while its result is new.
+    await app.addFiles([LARGE_PDF.path]);
+    await app.expectState(LARGE_PDF.name, 'needs-password');
+    await app.unlockWith(LARGE_PDF.password);
+    await app.expectState(LARGE_PDF.name, 'processing');
+    await expect(update).toHaveCount(0);
+    await app.expectState(LARGE_PDF.name, 'done');
+    await expect(update).toHaveCount(0);
+    expect(await updateWaiting(page)).toBe(true);
+
+    // "Process new files" lets go of the results: the offer comes back, and now it is taken.
+    await app.startOver();
+    await expect(update).toBeVisible();
+    const reloaded = page.waitForEvent('load');
+    await app.toasts
+      .getByRole('button', { name: app.t('toast.update.action'), exact: true })
+      .click();
+    await reloaded;
+    await app.ready();
+    await controlled(app);
+    expect(await updateWaiting(page)).toBe(false);
+    await expect(update).toHaveCount(0);
+  });
+
+  test('a window with unsaved results is not reloaded when another window takes the update', async ({
+    app,
+    page,
+    context,
+  }, testInfo) => {
+    await install(app);
+    await app.toasts.getByRole('button', { name: app.t('toast.dismiss'), exact: true }).click();
+
+    const otherPage = await context.newPage();
+    const other = new App(otherPage, app.lang, app.phone, (...segments) =>
+      testInfo.outputPath('other-window', ...segments),
+    );
+    otherPage.on('filechooser', () => undefined);
+    await other.open('./');
+    await controlled(other);
+    await other.addFixtures('aes-256-r6.pdf');
+    await other.expectState('aes-256-r6.pdf', 'needs-password');
+    await other.unlockWith('user');
+    await other.expectState('aes-256-r6.pdf', 'done');
+    await otherPage.evaluate(() => {
+      (window as unknown as { e2eSameDocument: boolean }).e2eSameDocument = true;
+    });
+
+    await publish(page, context, 'elsewhere');
+    await app.expectToast('toast.update');
+    await expect(other.toasts).not.toContainText(other.t('toast.update'));
+
+    // The idle window takes the update; the new worker now controls both.
+    const reloaded = page.waitForEvent('load');
+    await app.toasts
+      .getByRole('button', { name: app.t('toast.update.action'), exact: true })
+      .click();
+    await reloaded;
+    await app.ready();
+    await controlled(app);
+    expect(await updateWaiting(page)).toBe(false);
+
+    // The window with the unsaved result is left alone, result and all, and is not asked.
+    await other.expectState('aes-256-r6.pdf', 'done');
+    await expect(other.toasts).not.toContainText(other.t('toast.update'));
+    expect(
+      await otherPage.evaluate(
+        () => (window as unknown as { e2eSameDocument?: boolean }).e2eSameDocument,
+      ),
+    ).toBe(true);
+
+    // Once the result is saved it is asked, and reloads when the user says so.
+    const saved = await other.saveAll();
+    await expectUnlockedCopy(saved.bytes, fixture('aes-256-r6.pdf'));
+    await other.expectToast('toast.update');
+    const otherReloaded = otherPage.waitForEvent('load');
+    await other.toasts
+      .getByRole('button', { name: other.t('toast.update.action'), exact: true })
+      .click();
+    await otherReloaded;
+    await other.ready();
+    await expect(other.chooseButton).toBeVisible();
   });
 });

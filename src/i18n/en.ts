@@ -27,15 +27,15 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'empty.lock.body': 'Protect a PDF with a password, or restrict printing, copying and editing.',
   'empty.choose': 'Choose PDFs',
   'empty.dropHint': 'or drop files here',
-  'empty.pasteHint': 'You can also paste files',
-  'empty.privacy': 'Files are processed on this device and never uploaded',
+  'empty.pasteHint': 'or paste with',
+  'empty.privacy': 'Files never leave this device',
   'empty.chip.aes256': 'AES-256',
   'empty.chip.batch': 'Batch processing',
   'empty.chip.offline': 'Works offline',
 
   // --- Drop overlay ----------------------------------------------------------------------------
   'drop.title': 'Drop to add',
-  'drop.subtitle': 'Files are processed on this device and never uploaded',
+  'drop.subtitle': 'Files never leave this device',
 
   // --- File list -------------------------------------------------------------------------------
   'list.label': 'Files',
@@ -119,7 +119,7 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'action.saveAllFolder': 'Save to folder',
   'action.shareAll': 'Share all',
   'action.clear': 'Clear',
-  'action.startOver': 'Process new files',
+  'action.startOver': 'Start over',
   'action.switchToLock': 'Lock instead',
   'action.switchToUnlock': 'Unlock instead',
 
@@ -127,15 +127,12 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'status.analysing': 'Analysing…',
   'status.processing': 'Processing…',
   'status.processingCount': 'Processing, {done} of {total} done',
-  'status.nothingToUnlock': 'None of these files is password-protected. Nothing to unlock.',
+  'status.nothingToUnlock': 'Nothing here needs unlocking.',
   'status.nothingToLock': 'Enter the current password on the file card.',
   'status.nothingToDo': 'There is nothing to process.',
   'status.unlocked': { one: '{count} file unlocked', other: '{count} files unlocked' },
   'status.locked': { one: '{count} file locked', other: '{count} files locked' },
-  'status.failed': {
-    one: '{count} file could not be processed',
-    other: '{count} files could not be processed',
-  },
+  'status.failed': { one: '{count} file failed', other: '{count} files failed' },
 
   // --- Lock form -------------------------------------------------------------------------------
   'lock.password.label': 'Password',
@@ -195,6 +192,7 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'strength.4': 'Very strong',
   'strength.hint.too-short': 'Too short: use at least 8 characters',
   'strength.hint.common-password': 'This is a common password and easy to guess',
+  'strength.hint.name-or-word': 'Names and words are easy to guess, with or without digits',
   'strength.hint.repeated-characters': 'Avoid repeated characters',
   'strength.hint.sequence': 'Avoid sequences and keyboard patterns such as 1234 or qwerty',
   'strength.hint.single-character-class': 'Mix upper and lower case letters, digits and symbols',
@@ -299,7 +297,11 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'about.privacy':
     'Everything is processed on this device. Files and passwords never leave it; the app uploads nothing and contains no analytics or tracking.',
   'about.licenses': 'Open-source licences',
+  'about.licenses.app':
+    'This app is free software, released under the GNU Affero General Public License, version 3 (AGPL-3.0).',
   'about.licenses.thirdParty': 'This app includes these open-source components:',
+  'about.licenses.ijg': 'This software is based in part on the work of the Independent JPEG Group.',
+  'about.licenses.notices': 'Read the licence texts',
 
   // --- Toasts ----------------------------------------------------------------------------------
   'toast.dismiss': 'Dismiss',
@@ -327,6 +329,14 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
     one: '{count} file is already in the list',
     other: '{count} files are already in the list',
   },
+  'toast.shareLost': 'The shared files could not be received. Choose them in the app instead.',
+  'toast.shareLostCount': {
+    one: '{count} shared file could not be received. Choose it in the app instead.',
+    other: '{count} shared files could not be received. Choose them in the app instead.',
+  },
+  'toast.folderEmpty': 'There are no PDFs in that folder',
+  'toast.folderLimit': 'That folder holds too much: only some of its PDFs were added',
+  'toast.folderUnreadable': 'The folder could not be read. Drop the files themselves.',
   'toast.engineUnavailable': 'The PDF engine could not be loaded',
   'toast.retry': 'Try again',
 
@@ -382,10 +392,7 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
     one: '{count} needs its current password',
     other: '{count} need their current password',
   },
-  'list.summary.restricted': {
-    one: '{count} has restrictions only',
-    other: '{count} have restrictions only',
-  },
+  'list.summary.restricted': { one: '{count} is restricted', other: '{count} are restricted' },
   'list.summary.notEncrypted': {
     one: '{count} is not encrypted',
     other: '{count} are not encrypted',
@@ -393,6 +400,10 @@ export const en: Record<keyof typeof zhCN, MessageValue> = {
   'list.summary.rejected': { one: '{count} wrong password', other: '{count} wrong passwords' },
   'list.summary.failed': { one: '{count} problem', other: '{count} problems' },
   'list.summary.done': { one: '{count} is finished', other: '{count} are finished' },
+  'list.summary.relock': {
+    one: '{count} is to be locked again',
+    other: '{count} are to be locked again',
+  },
   'list.dropMore': 'Drop more PDFs here',
   'list.dropMore.hint': 'or click to choose, or paste',
 

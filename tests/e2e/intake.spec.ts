@@ -2,7 +2,8 @@
  * How files get into the app from the page: the file picker, drag and drop, paste, the keyboard
  * shortcut — and what is turned away (other file types, duplicates) or taken out again.
  */
-import { readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import type { JSHandle, Page } from '@playwright/test';
 import { expect, test } from './support/app';
 import { fixturePath } from './support/files';
@@ -73,6 +74,52 @@ test.describe('getting files in', () => {
     await expect(overlay).toHaveCount(0);
     await app.analysed(3);
     await app.expectState('owner-only-r6.pdf', 'restricted');
+  });
+
+  test('a dropped folder adds the PDFs inside it, and is never a card itself', async ({
+    app,
+    page,
+    context,
+    browserName,
+  }, testInfo) => {
+    // Folders are dragged in from a desktop file manager. The drag is a real one, performed by
+    // the browser itself (only that hands the page a directory), which only Chromium offers.
+    test.skip(app.phone || browserName !== 'chromium', 'a desktop gesture');
+    const folder = testInfo.outputPath('statements');
+    mkdirSync(path.join(folder, '2024', 'archive'), { recursive: true });
+    mkdirSync(path.join(folder, 'pictures'), { recursive: true });
+    copyFileSync(fixturePath('plain.pdf'), path.join(folder, 'summary.pdf'));
+    copyFileSync(fixturePath('aes-256-r6.pdf'), path.join(folder, '2024', 'march.pdf'));
+    copyFileSync(fixturePath('owner-only-r6.pdf'), path.join(folder, '2024', 'archive', 'old.PDF'));
+    writeFileSync(path.join(folder, 'notes.txt'), 'not a PDF, and nobody claims it is');
+    copyFileSync(fixturePath('not-a-pdf.bin'), path.join(folder, 'pictures', 'scan.jpg'));
+
+    await app.open();
+    const session = await context.newCDPSession(page);
+    const drop = async (paths: string[]): Promise<void> => {
+      const data = { items: [], files: paths, dragOperationsMask: 1 };
+      for (const type of ['dragEnter', 'dragOver', 'drop'] as const) {
+        await session.send('Input.dispatchDragEvent', { type, x: 400, y: 400, data });
+      }
+    };
+
+    // The folder and a loose file in one drop.
+    await drop([folder, fixturePath('objstm-plain.pdf')]);
+    await app.analysed(4);
+    await app.expectState('objstm-plain.pdf', 'not-encrypted');
+    await app.expectState('summary.pdf', 'not-encrypted');
+    await app.expectState('march.pdf', 'needs-password');
+    await app.expectState('old.PDF', 'restricted');
+    await expect(app.card('statements')).toHaveCount(0);
+    // The other files in the folder are passed over without a word.
+    await expect(app.toasts).not.toContainText(app.t('toast.notPdfCount', { count: 2 }));
+    await expect(app.toasts).not.toContainText('notes.txt');
+    await expect(app.toasts).not.toContainText('scan.jpg');
+
+    // A folder without PDFs adds nothing and says why.
+    await drop([path.join(folder, 'pictures')]);
+    await app.expectToast('toast.folderEmpty');
+    await expect(app.cards).toHaveCount(4);
   });
 
   test('a drag that leaves, or simply stops, takes the overlay away again', async ({

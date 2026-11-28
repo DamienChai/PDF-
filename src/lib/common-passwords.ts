@@ -51,3 +51,66 @@ export const COMMON_PASSWORDS: ReadonlyMap<string, number> = new Map(
 
 /** Length of the longest entry: longer substrings need not be looked up. */
 export const LONGEST_COMMON_PASSWORD = Math.max(...LIST.split(' ').map((entry) => entry.length));
+
+/**
+ * Pinyin syllables that names are made of: the common surnames, then the syllables most used in
+ * given names and a few everyday ones. A run of them ("zhangwei", "LiuYang", "wangxiaoming") is
+ * what a password guesser tries long before it tries random letters.
+ */
+const PINYIN =
+  'wang li zhang liu chen yang huang zhao wu zhou xu sun ma zhu hu guo he gao lin luo zheng ' +
+  'liang xie song tang han feng yu dong xiao cheng cao yuan deng fu shen zeng peng lv lu su ' +
+  'jiang cai jia ding wei xue ye yan pan du dai xia zhong tian ren fan fang shi yao tan ' +
+  'liao zou xiong jin hao kong bai cui kang mao qiu qin gu hou shao meng long wan duan lei ' +
+  'qian yin yi chang qiao lai gong wen pang ni niu mo an shu ge ji tong bi nie qi zhuang ou ' +
+  'mei xiang guan pu zuo zhan ning ke bao rao tao hong na min jing qiang jun yong jie juan ' +
+  'ming chao xiu lan ping gang gui ying hua hui jian bo xin fei ting dan ling yun qing bin ' +
+  'hai bing rui xuan zi xi ya nan rong sheng zhi kai kun lun xing zhen shan de fa quan hang ' +
+  'ai le lian man miao nian pei ran shuang si xian ze zhe zhuo zong bei chun da er gen ' +
+  'guang heng jiao ju mu san shuai tai teng wa you yue cong di dian en fen jiu kuan lang mi ' +
+  'nuo pin qun ruo sen shun ti xun wo lao po ba bu kuai dou shou tou';
+
+export const PINYIN_SYLLABLES: ReadonlySet<string> = new Set(PINYIN.split(' '));
+
+export const LONGEST_PINYIN_SYLLABLE = Math.max(...PINYIN.split(' ').map((entry) => entry.length));
+
+/**
+ * Which letter may follow which inside an ordinary English word or name: entry 0 lists the
+ * letters seen after "a", entry 25 those after "z". Taken from the letter pairs that make up
+ * 97.5 % of a sample of nine thousand words, plus a few everyday pairs the sample lacked. About
+ * half of all pairs are in it, so a run of random letters soon contains one that is not, while
+ * "company" and "elephant" pass. Compounds may fail at the seam ("football"); that is accepted.
+ */
+const FOLLOWERS = [
+  'abcdefghijklmnoprstuvwxyz',
+  'abeijlmorstuvy',
+  'acehiklorstuy',
+  'adeghijlmnorsuvy',
+  'abcdefghijklmnopqrstuvwxyz',
+  'aefilortuy',
+  'aeghilmnorstuy',
+  'aeilmnortuy',
+  'abcdefgjklmnopqrstuvxyz',
+  'aeiou',
+  'aehilnorsuy',
+  'abcdefgiklmopstuvwy',
+  'abefimnopsuy',
+  'acdefghijklmnoprstuvyz',
+  'abcdefghijklmnoprstuvwxyz',
+  'aehilmoprstuy',
+  'u',
+  'abcdefghiklmnoprstuvwy',
+  'acdefhiklmnopqstuwy',
+  'acefhilmnoprstuwyz',
+  'abcdefgiklmnprstxy',
+  'aeioy',
+  'adehilnors',
+  'aceioptuy',
+  'aceilmnoprstu',
+  'aehioyz',
+];
+
+/** True if `second` is a usual letter after `first` (both lower case, a to z). */
+export function isUsualLetterPair(first: string, second: string): boolean {
+  return FOLLOWERS[first.charCodeAt(0) - 97]?.includes(second) ?? false;
+}

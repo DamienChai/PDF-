@@ -21,6 +21,7 @@ export {
 export {
   DICTIONARIES,
   msg,
+  phrasesOf,
   t,
   translate,
   type Message,
@@ -28,6 +29,7 @@ export {
   type MessageList,
   type ParamNames,
   type ParamsOf,
+  type Phrases,
   type Text,
 } from './translate';
 export type { MessageParams, MessageValue, PluralForms } from './types';

@@ -2,10 +2,18 @@
 import { SKIP_WAITING, type SkipWaitingMessage } from './protocol';
 
 export interface ServiceWorkerHooks {
-  /** A new version is waiting. Call `apply()` to activate it and reload the page. */
+  /**
+   * A new version is waiting. Call `apply()` to activate it and reload the page. While
+   * `mayReload()` says no, `apply()` does nothing and can be called again later.
+   */
   onNeedRefresh?: (apply: () => Promise<void>) => void;
   /** Everything is cached; the app now works offline. Fired once per installation. */
   onOfflineReady?: () => void;
+  /**
+   * Asked right before the waiting version is activated and before the page is reloaded: false
+   * while that would cost the user work. Without it the page may always be reloaded.
+   */
+  mayReload?: () => boolean;
 }
 
 /** Remembers that `onOfflineReady` has been announced. */
@@ -37,7 +45,13 @@ export interface ServiceWorkerEnvironment {
 
 /**
  * Registers the worker and wires the "prompt" update strategy: a new version installs in the
- * background and then waits; it only takes over when the user agrees, never in the middle of work.
+ * background and then waits; it only takes over when the user agrees, never in the middle of
+ * work. Agreement is not enough by itself: `hooks.mayReload()` has the last word, both before
+ * this page activates the waiting version and before it reloads.
+ *
+ * Another window of the app can activate the new version too; it asks its own user and looks at
+ * its own work. This page is then not reloaded either: it carries on with what it has loaded,
+ * and offers the reload through `onNeedRefresh` under the same condition.
  */
 export async function manageServiceWorker(
   env: ServiceWorkerEnvironment,
@@ -57,13 +71,28 @@ export async function manageServiceWorker(
     updateViaCache: 'none',
   });
 
+  const mayReload = (): boolean => {
+    try {
+      return hooks.mayReload?.() ?? true;
+    } catch {
+      // Not knowing whether work is at stake is no licence to destroy it.
+      return false;
+    }
+  };
+
+  /** Reloads unless that would cost work; then the reload is offered again instead. */
   const reloadOnce = (): void => {
     if (reloading) return;
+    if (!mayReload()) {
+      hooks.onNeedRefresh?.(async () => reloadOnce());
+      return;
+    }
     reloading = true;
     env.reload();
   };
 
   const apply = async (): Promise<void> => {
+    if (reloading || !mayReload()) return;
     const waiting = registration.waiting;
     // Nothing waiting any more: another tab already activated the new version.
     if (!waiting) return reloadOnce();
@@ -73,6 +102,8 @@ export async function manageServiceWorker(
       env.setTimeout(resolve, ACTIVATION_TIMEOUT_MS);
       waiting.postMessage({ type: SKIP_WAITING } satisfies SkipWaitingMessage);
     });
+    applying = false;
+    // Work that began while the new version was taking over is not thrown away either.
     reloadOnce();
   };
 

@@ -4,6 +4,11 @@
 components below and contain compiled code from each of them. The exact versions and source
 checksums of a given build are recorded in `src/engine/dist/BUILDINFO.json`.
 
+The app hands these notices to its users: at build time `scripts/third-party-notices.ts` turns the
+table, the remarks below it and every section of this file, together with the licences of the
+bundled JavaScript packages, into `licenses.txt`, which About links to. The build fails when a
+version in the table differs from `BUILDINFO.json`.
+
 | Component                                                                   | Version | Licence                        | Source                       |
 | --------------------------------------------------------------------------- | ------- | ------------------------------ | ---------------------------- |
 | qpdf                                                                        | 12.4.2  | Apache-2.0                     | https://github.com/qpdf/qpdf |

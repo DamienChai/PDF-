@@ -103,6 +103,8 @@ export interface HarnessOptions {
   mode?: Mode;
   settings?: Partial<Settings>;
   capabilities?: Partial<SaveCapabilities>;
+  /** What the lock form copies to; without it copying fails, as in a browser that has none. */
+  clipboard?: Pick<Clipboard, 'writeText'>;
 }
 
 export interface Harness {
@@ -140,7 +142,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const mode = signal<Mode>(options.mode ?? 'unlock');
   const settings = signal<Settings>({ ...DEFAULT_SETTINGS, ...options.settings });
   const toasts = createToastQueue(frozenClock);
-  const lockForm = createLockForm({ toasts });
+  const { clipboard } = options;
+  const lockForm = createLockForm(clipboard ? { toasts, clipboard: () => clipboard } : { toasts });
   const save = createFakeSave(options.capabilities);
   const jobs = createJobsController({
     engine: options.realEngine ?? engine,
